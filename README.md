@@ -1,3 +1,21 @@
+# Pokemon Database structure
+
+## Db structure
+
+Pokemon {
+- id
+- name 
+- type1
+- type2
+- hp
+- attack
+- deffense
+- special_attack
+- special_deffense
+- speed
+- total_stats
+}
+
 # Pokémon Battle Engine Turn Resolution Guide
 
 ## Complete Turn Flowchart
