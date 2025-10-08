@@ -127,10 +127,6 @@ Each player secretly selects an action for each Pokémon:
 8. **Self-KO Check**
 - Recoil, Life Orb damage
 
-**For ITEMS:**
-- Immediate use (Potions, X Attack)
-- Held items activate when conditions met
-
 **For SWITCHES:**
 - Pokémon recalled
 - New Pokémon sent out
