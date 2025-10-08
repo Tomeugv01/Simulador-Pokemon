@@ -30,8 +30,6 @@ Each player secretly selects an action for each Pokémon:
 
 - **Fight:** Use a move
 - **Switch:** Switch with a Pokémon from the bench
-- **Item:** Use a held item or bag item
-- **Run:** Attempt to flee (wild battles only)
 
 **Key Rule:** Switching occurs before most moves, causing targeting moves to fail (except Pursuit).
 
