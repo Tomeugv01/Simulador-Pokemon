@@ -51,6 +51,11 @@ Ability {
 - In the probable case that a pokemon falls into more than one of these archetypes, its 4 moves will be randomly selected between all of the possible pools of moves
 - After each encounter, instead of adding a new pokemon to his team, the player will also get the option to replace one of his moves with an other one of ANY archetype of his liking.
 
+# Enemy CPU
+
+- In order for the enemy to know what to do each turn, an in deapth rule based ai will be implemented following a ruleset similar to the one found in this site https://essentialsdocs.fandom.com/wiki/Battle_AI
+- The core functionality of this ia is to diferenciate between different levels of difficulty for each battle and assing the corresponding level of inteligence to it
+
 # Pokémon Battle Engine Turn Resolution Guide
 
 ## Complete Turn Flowchart
@@ -227,3 +232,4 @@ Each player secretly selects an action for each Pokémon:
 - Increase the move diversity with more complex moves that further expands the pool variety
 - Instead of the game loop progression beeing explained fully in the textbox, implement a ui where the player can be aware of their porgress
 - With the addition of more pokemon to the existing pool, we will have the option to implement a harder game mode where the boss fight pools can be tuned for a more callenging experience to the player
+- A more complex ai system for the enemy cpu in order to add a complex and harder experience.
