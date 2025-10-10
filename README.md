@@ -117,7 +117,7 @@ Each player secretly selects an action for each Pokémon:
 | Priority | Action Type | Examples |
 |----------|-------------|----------|
 | Bracket 7 | Run/Switch | Switching, Poké Balls |
-| Bracket 6 | Mega Evolution | Mega Evolution |
+| Bracket 6 | Mega Evolution | Mega Evolution (not planned to be implemented) |
 | Bracket 5 | Pursuit | Pursuit (on switch) |
 | Bracket 4+ | Priority Moves | Protect, Extreme Speed, Aqua Jet |
 | Bracket 0 | Standard Moves | Tackle, Flamethrower, Hyper Beam |
@@ -233,3 +233,4 @@ Each player secretly selects an action for each Pokémon:
 - Instead of the game loop progression beeing explained fully in the textbox, implement a ui where the player can be aware of their porgress
 - With the addition of more pokemon to the existing pool, we will have the option to implement a harder game mode where the boss fight pools can be tuned for a more callenging experience to the player
 - A more complex ai system for the enemy cpu in order to add a complex and harder experience.
+- Its also in our plans to include a held item system that is also tied to the archetype system
