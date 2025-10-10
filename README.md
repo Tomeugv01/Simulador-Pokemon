@@ -14,6 +14,26 @@ Pokemon {
 - special_deffense
 - speed
 - total_stats
+
+}
+
+Move {
+- id
+- name 
+- type1
+- power
+- accuracity
+- pp
+- type (physical, special)
+- effect (JSON)
+
+}
+
+Ability {
+- id
+- name 
+- effect (JSON)
+
 }
 
 # Pokémon Battle Engine Turn Resolution Guide
