@@ -1,39 +1,88 @@
+# Battle System – Simple Explanation for Everyone
 
+In this game, each run is a **turn-based battle adventure** where you and your opponents use teams of creatures called **Pokémon**, each with their own stats and attacks.  
+The goal is to **progress through a series of battles**, growing stronger and building the best possible team before facing the **final boss**.
 
+---
 
-# Initial characteristics and possible escalation of the project
+## How a Battle Works
 
-## Initial play-loop and content
+Each battle happens in **turns**, where **you and your opponent** choose a move for your Pokémon.
 
-- Initialy, our simulator will be comprised to the original 151 gen1 pokemon with a limited move pool so we can focus on better implementation of our engine, prioritizing going in depth with our combat mechanics
-- Initial play loop: The simulator will follow a roguelike game design in which the player will start with a relatively weak team and through a series of increasingly more difficult set of battles will slowly create a stronger team untlil he finaly ends up facing a final bossfights.
-- Each run will be comprised of both a randomly generated team for both the player and each of their opponent EXCEPT for the final boss, who will have a unique and predefined pokemon pool from which it will generate its own team, in order to allow for a more difficult and thus satisfiing challenge.
-- A longer gamemode where instead of just having a series of reandom battles leading to a final boss fight, there will be a series of battles similar to the original games gym leaders, with tams of pokemon of a single type will also be implemented
+1. **Speed determines who attacks first.**  
+   The Pokémon with the highest speed acts first in the turn.
 
-## Future implementations
-### Since our main priority from the biggining is to ensure that our battle simulation engine is as advanced and solid as we are able to, when this obective is accomplished the following are our priorites of what content to add
-- Increase the pokemon pool form the original 151 to the 493 present in gen4
-- Increase the move diversity with more complex moves that further expands the pool variety
-- Instead of the game loop progression beeing explained fully in the textbox, implement a ui where the player can be aware of their porgress
-- With the addition of more pokemon to the existing pool, we will have the option to implement a harder game mode where the boss fight pools can be tuned for a more callenging experience to the player
-- A more complex ai system for the enemy cpu in order to add a complex and harder experience.
-- Its also in our plans to include a held item system that is also tied to the archetype system
+2. **Moves cause damage or effects.**  
+   Some attacks reduce the opponent’s health, others can boost your stats, heal you, or inflict status conditions such as paralysis or confusion.
 
+3. **Types matter.**  
+   Every Pokémon and move has a **type** (fire, water, grass, etc.).  
+   Some types are stronger against others: for example, water beats fire.
 
+4. **The last team standing wins.**  
+   When all of a player’s Pokémon have fainted, the other wins the battle.
 
+---
 
-# Team Generation
+## What Makes This System Special
 
-## Pokemon selector
+While it looks like a classic turn-based system, the core of the project lies in **how teams are generated and evolve** throughout the run.
 
-- Using different ranges of the total_stats value, random teams will be seleected for the opponent, creating an enviroment where teams are created with a difficulty progression is as best reflected as possible
-- A similar method will be implemented for the player team, a first team of pokemon will be given with a predetermined range of stats and after each encounter, he will be givven the option to add or swap a new mon of progresivly stronger characteristics
+### Random but Balanced Teams
 
-## Move selector
+- At the start, the player receives a **random team**, but only from Pokémon within a moderate power range.  
+- Opponents also get randomly generated teams, but **they get progressively stronger** after each battle.  
+- The **difficulty is calculated automatically** based on the total sum of a team’s stats (attack, defense, speed, etc.).
 
-- Once a Pokemon is selected to be added to a team, the move selection proces will begin.
-- Depending on the relative value of each stat of the mon (what percentage of their stats are alocated to each one) it will be assigned to a different archetype and thus it will get assigned 4 differnt random moves that fall onto this archetypes.
-- In the probable case that a pokemon falls into more than one of these archetypes, its 4 moves will be randomly selected between all of the possible pools of moves
-- After each encounter, instead of adding a new pokemon to his team, the player will also get the option to replace one of his moves with an other one of ANY archetype of his liking.
+### Strategic Progression
 
+After each victory, the player can **choose one improvement**:
 
+- **Add a new Pokémon to their team.**
+- **Replace one of their current moves.**
+- **(Later on)**, **obtain a special item.**
+
+This forces the player to **choose their growth path**:  
+Should they become stronger with new Pokémon or more flexible with better moves?
+
+### Adaptive Enemy AI
+
+Enemies don’t just get stronger – they also get **smarter** as you progress.  
+Early opponents may act randomly, but higher-level ones will:
+
+- Take advantage of type matchups.
+- Switch Pokémon strategically.
+- Use support or healing moves effectively.
+
+---
+
+## How Moves Are Selected
+
+Each Pokémon has 4 moves.  
+The moves they learn depend on their **combat archetype**, which the system determines automatically from their stat distribution.
+
+For example:
+
+- A Pokémon with high physical attack is a **“physical fighter”** and will get powerful contact-based moves.  
+- One with high defense and HP is a **“tank”**, with slower but more durable attacks.  
+- If a Pokémon has balanced stats across categories, it may draw moves from multiple archetypes, making it less predictable.
+
+---
+
+## Final Goal
+
+The player progresses through increasingly challenging battles until facing the **final boss**.  
+The boss has a **unique and pre-defined team**, not a random one, designed to deliver a **fair but challenging fight**.
+
+Defeating the boss completes the run and may unlock **harder modes or new gameplay options**.
+
+---
+
+## In Summary
+
+This battle system combines:
+
+- **Strategy** (types, moves, turn order).  
+- **Controlled randomness** (procedural team generation with balance).  
+- **Meaningful progression** (player choices shape their power).  
+- **Replayability** (every run feels different).
