@@ -1,0 +1,70 @@
+-- Abilities table (base information)
+CREATE TABLE abilities (
+    id INT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    description TEXT,
+    effect_function VARCHAR(100) DEFAULT NULL
+);
+
+-- Ability effects table (handles probabilistic effects)
+CREATE TABLE ability_effects (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    ability_id INT,
+    effect_type ENUM('Stat_Modifier', 'Status_Immunity', 'Weather_Effect', 'Healing', 
+                   'Damage_Modifier', 'Status_Infliction', 'Field_Effect', 'Custom'),
+    
+    -- Trigger conditions
+    trigger_type ENUM('Always_Active', 'On_Entry', 'On_Hit', 'On_Attack', 'On_Receive_Damage', 
+                     'On_Status', 'On_KO', 'End_of_Turn', 'Custom'),
+    trigger_probability INT DEFAULT 100,
+    
+    -- Effect parameters (flexible JSON for complex effects)
+    effect_parameters JSON,
+    
+    -- Target information
+    target ENUM('Self', 'User', 'Opponent', 'All_Opponents', 'Allies', 'All', 'Field'),
+    
+    FOREIGN KEY (ability_id) REFERENCES abilities(id)
+);
+
+-- Pokémon ability compatibility
+CREATE TABLE pokemon_abilities (
+    pokemon_id INT,
+    ability_id INT,
+    slot ENUM('Primary', 'Secondary', 'Hidden'),
+    PRIMARY KEY (pokemon_id, ability_id, slot)
+);
+
+
+--EXAMPLE INSERTS
+
+-- Insert base abilities
+INSERT INTO abilities (id, name, description, effect_function) VALUES
+(1, 'Static', 'Contact with the Pokémon may cause paralysis.', 'ability_static'),
+(2, 'Poison Point', 'Contact with the Pokémon may poison the attacker.', 'ability_poison_point'),
+(3, 'Flame Body', 'Contact with the Pokémon may burn the attacker.', 'ability_flame_body'),
+(4, 'Serene Grace', 'Doubles the chance of moves secondary effects.', 'ability_serene_grace'),
+(5, 'Quick Feet', 'Boosts Speed if there is a status problem.', 'ability_quick_feet'),
+(6, 'Intimidate', 'Lowers the opposing Pokémon Attack stat.', 'ability_intimidate');
+
+-- Insert ability effects with probabilities
+INSERT INTO ability_effects (ability_id, effect_type, trigger_type, trigger_probability, target, effect_parameters) VALUES
+-- Static: 30% chance to paralyze on contact
+(1, 'Status_Infliction', 'On_Receive_Damage', 30, 'User', 
+ '{"status": "Paralysis", "condition": "Makes_Contact"}'),
+
+-- Poison Point: 30% chance to poison on contact  
+(2, 'Status_Infliction', 'On_Receive_Damage', 30, 'User',
+ '{"status": "Poison", "condition": "Makes_Contact"}'),
+
+-- Flame Body: 30% chance to burn on contact
+(3, 'Status_Infliction', 'On_Receive_Damage', 30, 'User',
+ '{"status": "Burn", "condition": "Makes_Contact"}'),
+
+-- Intimidate: 100% chance on entry
+(6, 'Stat_Modifier', 'On_Entry', 100, 'All_Opponents',
+ '{"stat": "Attack", "change": -1}'),
+
+-- Quick Feet: 100% active when statused
+(5, 'Stat_Modifier', 'Always_Active', 100, 'Self',
+ '{"stat": "Speed", "change": 1.5, "condition": "Has_Status"}');
