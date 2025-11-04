@@ -1,6 +1,6 @@
 # Battle System – Simple Explanation for Everyone
 
-In this game, each run is a **turn-based battle adventure** where you and your opponents use teams of creatures called **Pokémon**, each with their own stats and attacks.  
+In this game, each run is a **turn-based battle adventure** where you and your opponents use teams of up to six creatures called **Pokémon**, each with their own stats and attacks.  
 The goal is to **progress through a series of battles**, growing stronger and building the best possible team before facing the **final boss**.
 
 ---
