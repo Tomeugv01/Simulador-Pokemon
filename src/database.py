@@ -637,6 +637,7 @@ class DatabaseManager:
             (363, 'Teatime', 'Normal', 'Status', 10, None, 100, False, False, 0, 'All', 'Forces all Pokémon to eat their berries.'),
             (364, 'Terrain Pulse', 'Normal', 'Special', 10, 50, 100, True, False, 0, 'Normal', 'Type and power change with active terrain.'),
             (365, 'Tri Attack', 'Normal', 'Special', 10, 80, 100, True, False, 0, 'Normal', 'May paralyze, burn, or freeze.'),
+        
         ]
         
         # Clear the table first to avoid duplicate errors
