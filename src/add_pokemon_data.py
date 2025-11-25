@@ -1,30 +1,24 @@
 import sqlite3
 import os
 from pathlib import Path
+from database import DatabaseManager
 
 class PokemonDataManager:
     def __init__(self, db_path="data/pokemon_battle.db"):
+        self.db_manager = DatabaseManager(db_path)
         self.db_path = db_path
-        self.ensure_data_directory()
         
-    def ensure_data_directory(self):
-        """Create data directory if it doesn't exist"""
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-    
     def get_connection(self):
         """Get database connection"""
-        return sqlite3.connect(self.db_path)
+        return self.db_manager.get_connection()
     
     def initialize_pokemon_data(self):
-        """Create Pokémon table and insert all 151 Pokémon"""
+        """Insert all 151 Pokémon (table already created by DatabaseManager)"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
         # Enable foreign keys
         cursor.execute("PRAGMA foreign_keys = ON")
-        
-        # Create Pokémon table
-        self._create_pokemon_table(cursor)
         
         # Insert all 151 Pokémon
         print("Inserting Pokémon data...")
@@ -33,24 +27,6 @@ class PokemonDataManager:
         conn.commit()
         conn.close()
         print("✅ Pokémon data initialized successfully!")
-
-    def _create_pokemon_table(self, cursor):
-        """Create the Pokémon table"""
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS pokemon (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE,
-            type1 TEXT NOT NULL,
-            type2 TEXT,
-            hp INTEGER NOT NULL,
-            attack INTEGER NOT NULL,
-            defense INTEGER NOT NULL,
-            special_attack INTEGER NOT NULL,
-            special_defense INTEGER NOT NULL,
-            speed INTEGER NOT NULL,
-            total_stats INTEGER NOT NULL
-        )
-        ''')
 
     def _insert_pokemon(self, cursor):
         """Insert all 151 Pokémon with their statistics"""
@@ -269,12 +245,21 @@ def get_pokemon_by_name(name):
 def main():
     """Initialize Pokémon database"""
     print("=== Pokémon Data Initialization ===")
-    db = PokemonDataManager()
-    db.initialize_pokemon_data()
+    
+    # First initialize the base database with all tables
+    print("Initializing base database...")
+    db_manager = DatabaseManager()
+    db_manager.initialize_database()
+    print("✅ Base database initialized")
+    
+    # Then add Pokémon data
+    print("\nAdding Pokémon data...")
+    pokemon_db = PokemonDataManager()
+    pokemon_db.initialize_pokemon_data()
     
     # Verify data was inserted
     pokemon_count = len(get_all_pokemon())
-    print(f"Total Pokémon in database: {pokemon_count}")
+    print(f"\n✅ Total Pokémon in database: {pokemon_count}")
 
 if __name__ == "__main__":
     main()
