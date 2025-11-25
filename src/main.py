@@ -1,4 +1,7 @@
-from .database import DatabaseManager, get_all_moves, get_move_details, search_moves_by_type
+try:
+    from .database import DatabaseManager, get_all_moves, get_move_details, search_moves_by_type
+except ImportError:
+    from database import DatabaseManager, get_all_moves, get_move_details, search_moves_by_type
 
 def display_move(move):
     """Display a single move in a formatted way"""
@@ -129,9 +132,11 @@ def main():
     """Main application loop"""
     print("=== Pokemon Battle Move Database ===")
     
-    # Initialize database
-    db = DatabaseManager()
-    db.initialize_database()
+    # Check if database exists, only initialize if it doesn't
+    import os
+    if not os.path.exists("data/pokemon_battle.db"):
+        db = DatabaseManager()
+        db.initialize_database()
     
     while True:
         print("\nOptions:")

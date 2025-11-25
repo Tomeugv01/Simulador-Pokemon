@@ -124,7 +124,9 @@ class DatabaseManager:
             special_attack INTEGER NOT NULL,
             special_defense INTEGER NOT NULL,
             speed INTEGER NOT NULL,
-            total_stats INTEGER NOT NULL
+            total_stats INTEGER NOT NULL,
+            evolution_level INTEGER,
+            exp_curve TEXT NOT NULL CHECK(exp_curve IN ('fast', 'medium-fast', 'medium', 'medium-slow', 'slow', 'fluctuating')) DEFAULT 'medium-fast'
         )
         ''')
 
