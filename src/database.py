@@ -32,6 +32,9 @@ class DatabaseManager:
         self._create_tables(cursor)
         
         # Insert data in the correct order
+        print("Inserting types...")
+        self._insert_types(cursor)
+        
         print("Inserting move effects...")
         self._insert_move_effects(cursor)
         
@@ -58,6 +61,14 @@ class DatabaseManager:
 
     def _create_tables(self, cursor):
         """Create all tables"""
+        # Create types table
+        cursor.execute('''
+        CREATE TABLE types (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE
+        )
+        ''')
+        
         # Create move_effects table
         cursor.execute('''
         CREATE TABLE move_effects (
@@ -116,8 +127,8 @@ class DatabaseManager:
         CREATE TABLE pokemon (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
-            type1 TEXT NOT NULL,
-            type2 TEXT,
+            type1 INTEGER NOT NULL,
+            type2 INTEGER,
             hp INTEGER NOT NULL,
             attack INTEGER NOT NULL,
             defense INTEGER NOT NULL,
@@ -126,9 +137,37 @@ class DatabaseManager:
             speed INTEGER NOT NULL,
             total_stats INTEGER NOT NULL,
             evolution_level INTEGER,
-            exp_curve TEXT NOT NULL CHECK(exp_curve IN ('fast', 'medium-fast', 'medium', 'medium-slow', 'slow', 'fluctuating')) DEFAULT 'medium-fast'
+            exp_curve TEXT NOT NULL CHECK(exp_curve IN ('fast', 'medium-fast', 'medium', 'medium-slow', 'slow', 'fluctuating')) DEFAULT 'medium-fast',
+            FOREIGN KEY (type1) REFERENCES types(id),
+            FOREIGN KEY (type2) REFERENCES types(id)
         )
         ''')
+
+    def _insert_types(self, cursor):
+        """Insert all Pokemon types"""
+        types = [
+            (1, 'Normal'),
+            (2, 'Fire'),
+            (3, 'Water'),
+            (4, 'Electric'),
+            (5, 'Grass'),
+            (6, 'Ice'),
+            (7, 'Fighting'),
+            (8, 'Poison'),
+            (9, 'Ground'),
+            (10, 'Flying'),
+            (11, 'Psychic'),
+            (12, 'Bug'),
+            (13, 'Rock'),
+            (14, 'Ghost'),
+            (15, 'Dragon'),
+            (16, 'Dark'),
+            (17, 'Steel'),
+            (18, 'Fairy')
+        ]
+        
+        cursor.executemany('INSERT INTO types (id, name) VALUES (?, ?)', types)
+        print(f"Successfully inserted {len(types)} types")
 
     def _insert_move_effects(self, cursor):
         """Insert all move effects"""
