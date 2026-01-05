@@ -442,7 +442,19 @@ class TurnManager:
             if action.action_type == ActionType.SWITCH:
                 self._execute_switch(pokemon, action.switch_target)
             elif action.action_type == ActionType.FIGHT:
-                self._execute_move(pokemon, action.move, action.target)
+                # Get the current active opponent (in case of switches)
+                current_target = self._get_current_target(pokemon)
+                self._execute_move(pokemon, action.move, current_target)
+    
+    def _get_current_target(self, user):
+        """Get the currently active opponent Pokemon (handles mid-turn switches)"""
+        # Determine which side the user is on
+        if user == self.battle_state.get('player1_active') or user in self.battle_state.get('player1_team', []):
+            # User is player1, target is player2's active
+            return self.battle_state.get('player2_active')
+        else:
+            # User is player2, target is player1's active
+            return self.battle_state.get('player1_active')
     
     def _execute_switch(self, pokemon, switch_target):
         """Execute a Pokemon switch"""
