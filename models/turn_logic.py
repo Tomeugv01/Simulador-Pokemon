@@ -3,8 +3,21 @@ Pokemon Battle Turn Logic
 Handles the complete turn resolution for Pokemon battles following standard mechanics.
 """
 import random
+import sys
+import os
 from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum
+
+# Add src to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
+
+try:
+    from src.repositories import MoveRepository
+except ImportError:
+    try:
+        from repositories import MoveRepository
+    except ImportError:
+        MoveRepository = None
 
 
 class ActionType(Enum):
@@ -76,6 +89,7 @@ class TurnManager:
         self.battle_state = battle_state
         self.turn_log = []
         self.fainted_pokemon = []
+        self.move_repo = MoveRepository() if MoveRepository else None
         
     def execute_turn(self, actions: List[BattleAction]) -> Dict[str, Any]:
         """
@@ -440,8 +454,11 @@ class TurnManager:
         # Reset volatile status on switch
         pokemon.reset_volatile_conditions()
         
+        # Determine which trainer owns this Pokemon
+        trainer_name = "Player" if pokemon in self.battle_state.get('player1_team', []) else "Opponent"
+        
         # Perform the switch
-        self._log(f"{pokemon.trainer} withdrew {pokemon.name}!")
+        self._log(f"{trainer_name} withdrew {pokemon.name}!")
         
         # Update battle state with new Pokemon
         if pokemon == self.battle_state.get('player1_active'):
@@ -449,7 +466,7 @@ class TurnManager:
         else:
             self.battle_state['player2_active'] = switch_target
         
-        self._log(f"{pokemon.trainer} sent out {switch_target.name}!")
+        self._log(f"{trainer_name} sent out {switch_target.name}!")
         
         # Apply entry hazards
         self._apply_entry_hazards(switch_target)
@@ -511,22 +528,8 @@ class TurnManager:
             target.take_damage(damage)
             self._log(f"{target.name} took {damage} damage!")
         
-        # Apply move effects
+        # Apply move effects (including drain)
         self._apply_move_effects(user, target, move, damage, critical_hit)
-        
-        # Drain/Absorb moves (heal based on damage dealt)
-        move_name = move.get('name', '')
-        drain_moves = ['Absorb', 'Mega Drain', 'Giga Drain', 'Drain Punch', 'Draining Kiss', 
-                       'Horn Leech', 'Parabolic Charge', 'Leech Life', 'Dream Eater']
-        if move_name in drain_moves and damage > 0:
-            heal_amount = damage // 2  # Most drain moves heal 50% of damage dealt
-            if move_name in ['Giga Drain', 'Drain Punch']:
-                heal_amount = (damage * 75) // 100  # These heal 75%
-            
-            actual_heal = min(heal_amount, user.max_hp - user.current_hp)
-            user.current_hp = min(user.max_hp, user.current_hp + actual_heal)
-            if actual_heal > 0:
-                self._log(f"{user.name} restored {actual_heal} HP!")
         
         # Recoil damage
         if move.get('recoil_percentage', 0) > 0:
@@ -711,105 +714,210 @@ class TurnManager:
         return multiplier
     
     def _apply_move_effects(self, user, target, move, damage: int, critical_hit: bool):
-        """Apply secondary effects of a move"""
-        # This would integrate with the Move_efffect.py system
-        # For now, basic implementation
+        """Apply secondary effects of a move using database-driven approach"""
+        # Get effects from database
+        effects = self._get_move_effects(move)
         
-        effects = move.get('effects', [])
+        # Apply each effect
         for effect in effects:
-            effect_name = effect.get('name', '')
-            probability = effect.get('probability', 100)
+            # Check if effect should trigger
+            triggers_on = effect.get('triggers_on', 'OnHit')
             
-            # Roll for effect activation
-            if random.randint(1, 100) > probability:
+            # Skip if conditions not met
+            if triggers_on == 'OnCrit' and not critical_hit:
+                continue
+            if triggers_on == 'OnHit' and damage == 0:
                 continue
             
-            # Status effects
-            if 'Burn' in effect_name and target.status == 'healthy':
-                target.apply_status('burn')
-                self._log(f"{target.name} was burned!")
-            elif 'Paralyze' in effect_name and target.status == 'healthy':
-                target.apply_status('paralysis')
-                self._log(f"{target.name} was paralyzed!")
-            elif 'Poison' in effect_name and target.status == 'healthy':
-                if 'Badly' in effect_name:
-                    target.apply_status('badly_poison')
-                    self._log(f"{target.name} was badly poisoned!")
-                else:
-                    target.apply_status('poison')
-                    self._log(f"{target.name} was poisoned!")
-            elif 'Freeze' in effect_name and target.status == 'healthy':
-                target.apply_status('freeze')
-                self._log(f"{target.name} was frozen!")
-            elif 'Sleep' in effect_name and target.status == 'healthy':
-                target.apply_status('sleep')
-                self._log(f"{target.name} fell asleep!")
-            
-            # Stat changes
-            elif 'Raise' in effect_name or 'Lower' in effect_name:
-                # Parse stat change
-                # Example: "Raise Attack 1" or "Lower Defense 2"
-                pass  # Implement stat change logic
-            
-            # Flinch
-            elif 'Flinch' in effect_name:
-                target.flinched = True
+            self._apply_single_effect(user, target, effect, damage, critical_hit)
+    
+    def _get_move_effects(self, move):
+        """Query move effects from database"""
+        if not self.move_repo:
+            return []
+        
+        move_id = move.get('id')
+        if not move_id:
+            return []
+        
+        try:
+            move_with_effects = self.move_repo.get_with_effects(move_id)
+            return move_with_effects.get('effects', [])
+        except Exception:
+            return []
     
     def _handle_status_move(self, user, target, move):
-        """Handle non-damaging status moves"""
-        move_name = move.get('name', '')
+        """Handle non-damaging status moves using database-driven approach"""
+        # Get effects from database
+        effects = self._get_move_effects(move)
         
-        # Protection moves (Protect, Detect, etc.)
-        if move_name in ['Protect', 'Detect', 'Spiky Shield', 'Baneful Bunker', 'King\'s Shield']:
-            user.protected = True
-            self._log(f"{user.name} protected itself!")
+        if not effects:
+            # Fallback: if no database effects, just log
+            self._log(f"{user.name} used {move.get('name', 'a move')}!")
             return
         
-        # Stat-changing moves
-        if 'Dragon Dance' in move_name:
-            user.modify_stat_stage('attack', 1)
-            user.modify_stat_stage('speed', 1)
-            self._log(f"{user.name}'s Attack and Speed rose!")
-        elif 'Swords Dance' in move_name:
-            user.modify_stat_stage('attack', 2)
-            self._log(f"{user.name}'s Attack sharply rose!")
-        elif 'Nasty Plot' in move_name:
-            user.modify_stat_stage('sp_attack', 2)
-            self._log(f"{user.name}'s Special Attack sharply rose!")
-        elif 'Calm Mind' in move_name:
-            user.modify_stat_stage('sp_attack', 1)
-            user.modify_stat_stage('sp_defense', 1)
-            self._log(f"{user.name}'s Special Attack and Special Defense rose!")
+        # Apply each effect
+        for effect in effects:
+            self._apply_single_effect(user, target, effect, 0, False)
+    
+    def _apply_single_effect(self, user, target, effect, damage_dealt=0, critical_hit=False):
+        """Apply a single move effect based on database data"""
+        effect_type = effect.get('effect_type')
+        effect_target_str = effect.get('effect_target', 'Target')
+        probability = effect.get('probability', 100)
         
-        # Status-inflicting moves
-        elif 'Thunder Wave' in move_name:
-            if target.status is None or target.status == '':
-                target.apply_status('paralysis')
-                self._log(f"{target.name} was paralyzed!")
-            else:
-                self._log(f"But it failed!")
-        elif 'Toxic' in move_name:
-            if target.status is None or target.status == '':
-                target.apply_status('badly_poison')
-                self._log(f"{target.name} was badly poisoned!")
-            else:
-                self._log(f"But it failed!")
-        elif 'Will-O-Wisp' in move_name:
-            if target.status is None or target.status == '':
-                target.apply_status('burn')
-                self._log(f"{target.name} was burned!")
-            else:
-                self._log(f"But it failed!")
+        # Probability check
+        if random.randint(1, 100) > probability:
+            return
         
-        # Healing moves
-        elif move_name in ['Recover', 'Soft-Boiled', 'Milk Drink', 'Slack Off', 'Roost', 'Synthesis', 'Moonlight', 'Morning Sun']:
-            heal_amount = user.max_hp // 2
-            actual_heal = min(heal_amount, user.max_hp - user.current_hp)
-            user.current_hp = min(user.max_hp, user.current_hp + actual_heal)
+        # Determine who receives the effect
+        effect_target = target if effect_target_str == 'Target' else user
+        
+        # Apply based on effect type
+        if effect_type == 'STAT_CHANGE':
+            self._apply_stat_change_effect(effect_target, effect)
+        elif effect_type == 'STATUS':
+            self._apply_status_effect(effect_target, effect)
+        elif effect_type == 'HEAL':
+            self._apply_heal_effect(user, effect, damage_dealt)
+        elif effect_type == 'WEATHER':
+            self._apply_weather_effect(effect)
+        elif effect_type == 'FIELD_EFFECT':
+            self._apply_field_effect(effect)
+        elif effect_type == 'OTHER':
+            self._apply_other_effect(user, target, effect)
+    
+    def _apply_stat_change_effect(self, pokemon, effect):
+        """Apply stat change from database effect"""
+        stat_to_change = effect.get('stat_to_change', '')
+        stat_change_amount = effect.get('stat_change_amount', 0)
+        
+        if stat_to_change == 'All':
+            # Raise/lower all stats
+            for stat in ['attack', 'defense', 'sp_attack', 'sp_defense', 'speed']:
+                pokemon.modify_stat_stage(stat, stat_change_amount)
+            self._log(f"{pokemon.name}'s stats {'rose' if stat_change_amount > 0 else 'fell'}!")
+        elif stat_to_change:
+            # Convert database stat names to Pokemon attribute names
+            stat_map = {
+                'Attack': 'attack',
+                'Defense': 'defense',
+                'SpAttack': 'sp_attack',
+                'SpDefense': 'sp_defense',
+                'Speed': 'speed',
+                'Accuracy': 'accuracy',
+                'Evasion': 'evasion'
+            }
+            stat_key = stat_map.get(stat_to_change, stat_to_change.lower())
+            pokemon.modify_stat_stage(stat_key, stat_change_amount)
+            
+            # Generate appropriate message
+            stat_display = stat_to_change.replace('Sp', 'Special ')
+            if abs(stat_change_amount) >= 2:
+                change_word = 'sharply rose' if stat_change_amount > 0 else 'harshly fell'
+            else:
+                change_word = 'rose' if stat_change_amount > 0 else 'fell'
+            self._log(f"{pokemon.name}'s {stat_display} {change_word}!")
+    
+    def _apply_status_effect(self, pokemon, effect):
+        """Apply status condition from database effect"""
+        status_condition = effect.get('status_condition', 'None')
+        
+        if status_condition == 'None' or not status_condition:
+            return
+        
+        # Check if Pokemon can be statused
+        if pokemon.status and pokemon.status != '':
+            self._log(f"But it failed!")
+            return
+        
+        # Map database status names to Pokemon status names
+        status_map = {
+            'Burn': 'burn',
+            'Paralysis': 'paralysis',
+            'Freeze': 'freeze',
+            'Poison': 'poison',
+            'Sleep': 'sleep',
+            'Confusion': 'confusion'
+        }
+        status_name = status_map.get(status_condition, status_condition.lower())
+        
+        pokemon.apply_status(status_name)
+        
+        # Generate message
+        status_messages = {
+            'burn': 'was burned',
+            'paralysis': 'was paralyzed',
+            'freeze': 'was frozen solid',
+            'poison': 'was poisoned',
+            'badly_poison': 'was badly poisoned',
+            'sleep': 'fell asleep',
+            'confusion': 'became confused'
+        }
+        message = status_messages.get(status_name, f'was afflicted with {status_name}')
+        self._log(f"{pokemon.name} {message}!")
+    
+    def _apply_heal_effect(self, pokemon, effect, damage_dealt=0):
+        """Apply healing from database effect"""
+        heal_percentage = effect.get('heal_percentage', 0)
+        
+        if heal_percentage > 0:
+            # Check if it's drain (heals based on damage) or direct heal
+            if damage_dealt > 0:
+                # Drain effect - heal based on damage
+                heal_amount = int(damage_dealt * heal_percentage / 100)
+            else:
+                # Direct heal - heal based on max HP
+                heal_amount = int(pokemon.max_hp * heal_percentage / 100)
+            
+            actual_heal = min(heal_amount, pokemon.max_hp - pokemon.current_hp)
+            pokemon.current_hp = min(pokemon.max_hp, pokemon.current_hp + actual_heal)
+            
             if actual_heal > 0:
-                self._log(f"{user.name} restored {actual_heal} HP!")
+                if damage_dealt > 0:
+                    self._log(f"{pokemon.name} drained {actual_heal} HP!")
+                else:
+                    self._log(f"{pokemon.name} restored {actual_heal} HP!")
             else:
-                self._log(f"But it failed!")
+                self._log(f"{pokemon.name}'s HP is already full!")
+    
+    def _apply_weather_effect(self, effect):
+        """Apply weather change from database effect"""
+        weather_type = effect.get('weather_type', 'None')
+        
+        if weather_type and weather_type != 'None':
+            self.battle_state['weather'] = {
+                'type': weather_type,
+                'turns_remaining': 5
+            }
+            self._log(f"{weather_type} began!")
+    
+    def _apply_field_effect(self, effect):
+        """Apply field effect from database effect"""
+        field_condition = effect.get('field_condition')
+        
+        if field_condition:
+            # Store in field_effects
+            if 'field_effects' not in self.battle_state:
+                self.battle_state['field_effects'] = {}
+            
+            # Most field effects last 5 turns
+            self.battle_state['field_effects'][field_condition.lower()] = {
+                'active': True,
+                'turns_remaining': 5
+            }
+            self._log(f"{field_condition} was set up!")
+    
+    def _apply_other_effect(self, user, target, effect):
+        """Apply special effects from database"""
+        effect_name = effect.get('effect_name', '')
+        
+        # Protection effects
+        if 'Protect' in effect_name:
+            user.protected = True
+            self._log(f"{user.name} protected itself!")
+        # Add more special cases as needed
+    
     
     def _calculate_confusion_damage(self, pokemon) -> int:
         """Calculate self-inflicted confusion damage"""

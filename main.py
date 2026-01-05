@@ -14,6 +14,7 @@ from models.Pokemon import Pokemon
 from models.team_generation import TeamGenerator, TeamComposition, Archetype
 from models.cpu import CPUTrainer, AIFlag
 from models.turn_logic import TurnManager, BattleAction, ActionType
+from models.experience import ExperienceCurve
 
 
 class PokemonGame:
@@ -26,6 +27,7 @@ class PokemonGame:
         self.wins = 0
         self.losses = 0
         self.game_over = False
+        self.defeated_opponents = []  # Track defeated Pokemon for EXP calculation
     
     def start(self):
         """Start the game"""
@@ -40,14 +42,16 @@ class PokemonGame:
             opponent_team = self.generate_opponent()
             
             # Battle
-            result = self.battle(opponent_team)
+            result_tuple = self.battle(opponent_team)
+            result = result_tuple[0]
+            defeated_opponents = result_tuple[1] if len(result_tuple) > 1 else []
             
             if result == 'win':
                 self.wins += 1
                 self.current_round += 1
                 
-                # Offer rewards
-                if not self.offer_rewards():
+                # Offer rewards (this will award EXP)
+                if not self.offer_rewards(defeated_opponents):
                     break
             else:
                 self.losses += 1
@@ -175,6 +179,9 @@ class PokemonGame:
         print("BATTLE START!")
         print("="*70)
         
+        # Track defeated opponents for EXP calculation
+        defeated_opponents = []
+        
         # Initialize battle state
         player_active = self.player_team[0]
         opponent_active = opponent_team[0]
@@ -219,7 +226,7 @@ class PokemonGame:
             
             if player_action is None:
                 print("\nYou forfeit the battle!")
-                return 'loss'
+                return ('loss', [])
             
             # CPU chooses move
             cpu_result = cpu.choose_move(opponent_active, player_active)
@@ -251,13 +258,14 @@ class PokemonGame:
             # Check for fainted Pokemon
             if opponent_active.current_hp <= 0:
                 print(f"\nOpponent's {opponent_active.name} fainted!")
+                defeated_opponents.append(opponent_active)  # Track for EXP
                 battle_state['player2_team'].remove(opponent_active)
                 
                 if not battle_state['player2_team']:
                     print("\n" + "="*70)
                     print("VICTORY!")
                     print("="*70)
-                    return 'win'
+                    return ('win', defeated_opponents)
                 
                 # Switch to next opponent Pokemon
                 opponent_active = battle_state['player2_team'][0]
@@ -274,7 +282,7 @@ class PokemonGame:
                     print("\n" + "="*70)
                     print("DEFEAT!")
                     print("="*70)
-                    return 'loss'
+                    return ('loss', [])
                 
                 # Player must switch to alive Pokemon
                 player_active = self.force_switch()
@@ -645,33 +653,43 @@ class PokemonGame:
             if random.random() < 0.3:
                 print(f"  {defender.name} flinched!")
     
-    def offer_rewards(self):
+    def offer_rewards(self, defeated_opponents):
         """Offer rewards after winning a battle"""
         print("\n" + "="*70)
         print("VICTORY REWARDS")
         print("="*70)
         
-        # Level up team (ALL Pokemon that participated, including fainted ones)
+        # Award EXP to all Pokemon (including fainted ones)
         print("\nYour Pokemon gained experience!")
-        # Match opponent level progression: they gain 2+(round//3) per round
-        # So player should gain similar amounts to stay competitive
-        # Note: current_round has already been incremented when this is called
-        # Round 1 complete (current_round=2): gain 4 levels (5->9), etc.
-        if self.wins == 1:  # Just completed first battle
-            levels_gained = 4  # Start at 5, need to reach 9 for Round 2
-        else:
-            levels_gained = 2 + (self.wins - 1) // 3  # Match opponent scaling
         
         evolutions_available = []
         for pokemon in self.player_team:
-            # All Pokemon gain levels, not just survivors
-            level_info = pokemon.level_up(levels_gained)
-            print(f"\n{pokemon.name} grew to level {level_info['new_level']}!")
+            # Calculate total EXP from all defeated opponents
+            total_exp = 0
+            for defeated in defeated_opponents:
+                exp_gain = ExperienceCurve.calculate_exp_gain(
+                    defeated_pokemon=defeated,
+                    winner_level=pokemon.level,
+                    is_wild=False,
+                    is_trainer=True,
+                    participated=True
+                )
+                total_exp += exp_gain
             
-            # Show stat gains
-            gains = level_info['stat_gains']
-            print(f"  HP +{gains['hp']}, Atk +{gains['attack']}, Def +{gains['defense']}")
-            print(f"  SpA +{gains['sp_attack']}, SpD +{gains['sp_defense']}, Spe +{gains['speed']}")
+            # Award EXP (this handles automatic level-ups)
+            exp_result = pokemon.gain_exp(total_exp)
+            
+            if exp_result['leveled_up']:
+                levels_gained = exp_result['new_level'] - exp_result['old_level']
+                print(f"\n{pokemon.name} gained {total_exp:,} EXP!")
+                print(f"{pokemon.name} grew to level {exp_result['new_level']}!")
+                
+                # Show stat gains
+                gains = exp_result['stat_gains']
+                print(f"  HP +{gains['hp']}, Atk +{gains['attack']}, Def +{gains['defense']}")
+                print(f"  SpA +{gains['sp_attack']}, SpD +{gains['sp_defense']}, Spe +{gains['speed']}")
+            else:
+                print(f"\n{pokemon.name} gained {total_exp:,} EXP (Level {pokemon.level})")
             
             # Check for evolution
             can_evolve, evo_id = pokemon.can_evolve()

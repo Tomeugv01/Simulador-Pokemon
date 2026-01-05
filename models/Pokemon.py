@@ -23,6 +23,11 @@ except ImportError:
 
 from Move import Move
 
+try:
+    from experience import ExperienceCurve
+except ImportError:
+    from models.experience import ExperienceCurve
+
 
 class Pokemon:
     """
@@ -90,8 +95,9 @@ class Pokemon:
             'sp_attack': 0, 'sp_defense': 0, 'speed': 0
         }
         
-        # Level
+        # Level and Experience
         self.level = max(1, min(100, level))
+        self.current_exp = ExperienceCurve.exp_for_level(self.level, self.exp_curve)
         
         # Calculate stats
         self.max_hp = self._calculate_hp_stat()
@@ -658,16 +664,15 @@ class Pokemon:
         """Get current HP as percentage"""
         return (self.current_hp / self.max_hp) * 100 if self.max_hp > 0 else 0
     
-    def level_up(self, levels=1):
+    def gain_exp(self, exp_amount: int) -> dict:
         """
-        Increase Pokemon level and recalculate stats.
-        HP percentage is preserved.
+        Award experience points and handle level-ups.
         
         Args:
-            levels (int): Number of levels to gain (default 1)
+            exp_amount: EXP points to award
             
         Returns:
-            dict: Dictionary with level-up info {'old_level', 'new_level', 'stat_gains'}
+            dict: Level-up info {'leveled_up', 'old_level', 'new_level', 'stat_gains', 'exp_gained', 'total_exp'}
         """
         old_level = self.level
         old_stats = {
@@ -679,23 +684,31 @@ class Pokemon:
             'speed': self.speed
         }
         
-        # Get HP percentage before level up
-        hp_percentage = self.get_hp_percentage() / 100
+        # Add experience
+        self.current_exp += exp_amount
         
-        # Increase level (cap at 100)
-        self.level = min(100, self.level + levels)
+        # Check for level up(s)
+        new_level = ExperienceCurve.level_from_exp(self.current_exp, self.exp_curve)
+        leveled_up = new_level > old_level
         
-        # Recalculate stats
-        self.max_hp = self._calculate_hp_stat()
-        self.attack = self._calculate_stat('attack')
-        self.defense = self._calculate_stat('defense')
-        self.sp_attack = self._calculate_stat('sp_attack')
-        self.sp_defense = self._calculate_stat('sp_defense')
-        self.speed = self._calculate_stat('speed')
-        
-        # Restore HP percentage (but at least 1 HP if alive)
-        if self.current_hp > 0:
-            self.current_hp = max(1, int(self.max_hp * hp_percentage))
+        if leveled_up and new_level <= 100:
+            # Get HP percentage before level up
+            hp_percentage = self.get_hp_percentage() / 100
+            
+            # Update level
+            self.level = new_level
+            
+            # Recalculate stats
+            self.max_hp = self._calculate_hp_stat()
+            self.attack = self._calculate_stat('attack')
+            self.defense = self._calculate_stat('defense')
+            self.sp_attack = self._calculate_stat('sp_attack')
+            self.sp_defense = self._calculate_stat('sp_defense')
+            self.speed = self._calculate_stat('speed')
+            
+            # Restore HP percentage (but at least 1 HP if alive)
+            if self.current_hp > 0:
+                self.current_hp = max(1, int(self.max_hp * hp_percentage))
         
         # Calculate stat gains
         stat_gains = {
@@ -708,9 +721,37 @@ class Pokemon:
         }
         
         return {
+            'leveled_up': leveled_up,
             'old_level': old_level,
             'new_level': self.level,
-            'stat_gains': stat_gains
+            'stat_gains': stat_gains,
+            'exp_gained': exp_amount,
+            'total_exp': self.current_exp
+        }
+    
+    def level_up(self, levels=1):
+        """
+        Directly increase Pokemon level (legacy method for compatibility).
+        Prefer using gain_exp() for proper EXP-based leveling.
+        
+        Args:
+            levels (int): Number of levels to gain (default 1)
+            
+        Returns:
+            dict: Dictionary with level-up info {'old_level', 'new_level', 'stat_gains'}
+        """
+        # Calculate EXP needed for target level
+        target_level = min(100, self.level + levels)
+        target_exp = ExperienceCurve.exp_for_level(target_level, self.exp_curve)
+        exp_needed = target_exp - self.current_exp
+        
+        # Use gain_exp to handle the level up
+        result = self.gain_exp(exp_needed)
+        
+        return {
+            'old_level': result['old_level'],
+            'new_level': result['new_level'],
+            'stat_gains': result['stat_gains']
         }
     
     def can_evolve(self):

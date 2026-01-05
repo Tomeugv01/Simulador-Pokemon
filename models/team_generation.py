@@ -14,9 +14,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src
 try:
     from repositories import PokemonRepository, MoveRepository
     from Pokemon import Pokemon
+    from experience import ExperienceCurve
 except ImportError:
     from src.repositories import PokemonRepository, MoveRepository
     from models.Pokemon import Pokemon
+    from models.experience import ExperienceCurve
 
 
 class TeamComposition(Enum):
@@ -262,7 +264,7 @@ class TeamGenerator:
         Args:
             pokemon_data: Pokemon base data
             round_number: Current round for level scaling
-            level: Override level (default: scaled by round)
+            level: Override level (default: scaled by round and growth curve)
             
         Returns:
             Pokemon instance
@@ -273,10 +275,16 @@ class TeamGenerator:
             # Round 1: 5, Round 2: 7, Round 3: 9, Round 5: 15, Round 10: 35
             base_level = 5
             if round_number == 1:
-                level = base_level  # Same as player in Round 1
+                base_level = base_level  # Same as player in Round 1
             else:
                 level_per_round = 2 + (round_number // 3)  # Accelerating growth
-                level = min(100, base_level + round_number * level_per_round)
+                base_level = min(100, base_level + round_number * level_per_round)
+            
+            # Adjust level based on Pokemon's growth curve
+            # Fast-growing Pokemon get higher levels, slow-growing get lower levels
+            # This balances difficulty so all Pokemon are competitive
+            exp_curve = pokemon_data.get('exp_curve', 'medium-fast')
+            level = ExperienceCurve.scale_level_for_curve(base_level, exp_curve)
         
         # Create Pokemon instance
         pokemon = Pokemon(
@@ -906,7 +914,14 @@ class TeamGenerator:
                 
                 if pokemon_data and pokemon_data['id'] not in global_used_species:
                     global_used_species.add(pokemon_data['id'])
-                    pokemon = self._create_pokemon_instance(pokemon_data, round_number=1, level=5)
+                    
+                    # Calculate starter level based on growth curve
+                    # All starters start at effective power level 5, but actual level varies
+                    base_level = 5
+                    exp_curve = pokemon_data.get('exp_curve', 'medium-fast')
+                    scaled_level = ExperienceCurve.scale_level_for_curve(base_level, exp_curve)
+                    
+                    pokemon = self._create_pokemon_instance(pokemon_data, round_number=1, level=scaled_level)
                     choices.append(pokemon)
             
             all_choices.append(choices)
