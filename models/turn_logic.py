@@ -1,0 +1,1104 @@
+"""
+Pokemon Battle Turn Logic
+Handles the complete turn resolution for Pokemon battles following standard mechanics.
+"""
+import random
+from typing import List, Dict, Optional, Tuple, Any
+from enum import Enum
+
+
+class ActionType(Enum):
+    """Types of actions a player can take"""
+    FIGHT = "fight"  # Use a move
+    SWITCH = "switch"  # Switch Pokemon
+    ITEM = "item"  # Use an item (future implementation)
+    RUN = "run"  # Attempt to flee (future implementation)
+
+
+class PriorityBracket(Enum):
+    """Priority brackets for action resolution"""
+    SWITCH = 7  # Switching and running
+    MEGA_EVOLUTION = 6  # Mega Evolution (future)
+    PURSUIT_SWITCH = 5  # Pursuit when target switches
+    PRIORITY_4 = 4  # Extreme Speed
+    PRIORITY_3 = 3  # Fake Out
+    PRIORITY_2 = 2  # Feint, Extreme Speed variants
+    PRIORITY_1 = 1  # Quick Attack, Aqua Jet, etc.
+    NORMAL = 0  # Standard moves
+    PRIORITY_NEG_1 = -1  # Vital Throw
+    PRIORITY_NEG_2 = -2  # Focus Punch
+    PRIORITY_NEG_3 = -3  # Beak Blast
+    PRIORITY_NEG_4 = -4  # Avalanche
+    PRIORITY_NEG_5 = -5  # Counter, Mirror Coat
+    PRIORITY_NEG_6 = -6  # Roar, Whirlwind, Dragon Tail
+    PRIORITY_NEG_7 = -7  # Trick Room
+
+
+class BattleAction:
+    """Represents a single action in battle"""
+    def __init__(self, pokemon, action_type: ActionType, **kwargs):
+        self.pokemon = pokemon
+        self.action_type = action_type
+        self.move = kwargs.get('move', None)
+        self.target = kwargs.get('target', None)
+        self.switch_target = kwargs.get('switch_target', None)
+        self.item = kwargs.get('item', None)
+        self.priority = self._calculate_priority()
+        
+    def _calculate_priority(self) -> int:
+        """Calculate the priority of this action"""
+        if self.action_type == ActionType.SWITCH:
+            return PriorityBracket.SWITCH.value
+        elif self.action_type == ActionType.FIGHT and self.move:
+            # Get move priority from move data
+            return self.move.get('priority', 0)
+        else:
+            return PriorityBracket.NORMAL.value
+
+
+class TurnManager:
+    """Manages the complete turn resolution for a Pokemon battle"""
+    
+    def __init__(self, battle_state: Dict[str, Any]):
+        """
+        Initialize the turn manager
+        
+        Args:
+            battle_state: Dictionary containing:
+                - player1_active: Active Pokemon for player 1
+                - player2_active: Active Pokemon for player 2
+                - player1_team: Full team for player 1
+                - player2_team: Full team for player 2
+                - weather: Current weather condition
+                - field_effects: Active field effects (terrain, trick room, etc.)
+                - turn_count: Current turn number
+        """
+        self.battle_state = battle_state
+        self.turn_log = []
+        self.fainted_pokemon = []
+        
+    def execute_turn(self, actions: List[BattleAction]) -> Dict[str, Any]:
+        """
+        Execute a complete battle turn
+        
+        Args:
+            actions: List of BattleAction objects (one per active Pokemon)
+            
+        Returns:
+            Dictionary with turn results and updated battle state
+        """
+        # IMPORTANT: Clear previous turn's log
+        self.turn_log = []
+        self.fainted_pokemon = []
+        
+        # Phase 1: Pre-turn effects
+        self._phase_pre_turn()
+        
+        # Phase 2: Sort and execute actions
+        sorted_actions = self._sort_actions(actions)
+        self._phase_execute_actions(sorted_actions)
+        
+        # Phase 3: End-of-turn effects
+        self._phase_end_turn()
+        
+        # Phase 4: Handle fainted Pokemon
+        self._phase_handle_faints()
+        
+        # Phase 5: Check win condition
+        winner = self._check_win_condition()
+        
+        return {
+            'battle_state': self.battle_state,
+            'turn_log': self.turn_log,
+            'fainted_pokemon': self.fainted_pokemon,
+            'winner': winner,
+            'battle_ended': winner is not None
+        }
+    
+    # ========== PHASE 1: PRE-TURN EFFECTS ==========
+    
+    def _phase_pre_turn(self):
+        """Execute all pre-turn effects"""
+        # Don't log turn number here - main.py already displays it
+        # self._log("=== Beginning Turn {} ===".format(self.battle_state.get('turn_count', 1)))
+        
+        # Reset turn-based volatile conditions
+        for pokemon in self._get_all_active_pokemon():
+            pokemon.protected = False  # Protection lasts only one turn
+            pokemon.flinched = False  # Flinch resets each turn
+        
+        # 1. Weather effects
+        self._process_weather_tick()
+        
+        # 2. Field effect duration
+        self._process_field_effects_tick()
+        
+        # 3. Ability triggers (start of turn)
+        self._process_start_of_turn_abilities()
+        
+        # 4. Status condition effects and checks
+        self._process_status_conditions()
+        
+        # 5. Item effects (start of turn)
+        self._process_start_of_turn_items()
+        
+        # 6. Special effect ends (Roost flying-type restoration)
+        self._process_effect_endings()
+    
+    def _process_weather_tick(self):
+        """Process weather duration and damage"""
+        weather = self.battle_state.get('weather', {})
+        if not weather or weather.get('type') == 'None':
+            return
+            
+        weather_type = weather.get('type')
+        turns_remaining = weather.get('turns_remaining', 0)
+        
+        if turns_remaining > 0:
+            self._log(f"{weather_type} continues...")
+            
+            # Apply weather damage (Sandstorm, Hail)
+            if weather_type == 'Sandstorm':
+                self._apply_sandstorm_damage()
+            elif weather_type == 'Hail':
+                self._apply_hail_damage()
+                
+            # Decrement duration (done in end phase)
+        else:
+            self._log(f"The {weather_type} faded.")
+            self.battle_state['weather'] = {'type': 'None', 'turns_remaining': 0}
+    
+    def _apply_sandstorm_damage(self):
+        """Apply sandstorm damage to non-immune Pokemon"""
+        for pokemon in self._get_all_active_pokemon():
+            # Immune types: Rock, Ground, Steel
+            if pokemon.type1 not in ['Rock', 'Ground', 'Steel'] and \
+               pokemon.type2 not in ['Rock', 'Ground', 'Steel']:
+                damage = pokemon.max_hp // 16
+                pokemon.take_damage(damage)
+                self._log(f"{pokemon.name} is buffeted by the sandstorm! (-{damage} HP)")
+    
+    def _apply_hail_damage(self):
+        """Apply hail damage to non-immune Pokemon"""
+        for pokemon in self._get_all_active_pokemon():
+            # Immune type: Ice
+            if pokemon.type1 != 'Ice' and pokemon.type2 != 'Ice':
+                damage = pokemon.max_hp // 16
+                pokemon.take_damage(damage)
+                self._log(f"{pokemon.name} is buffeted by the hail! (-{damage} HP)")
+    
+    def _process_field_effects_tick(self):
+        """Process field effect durations"""
+        field_effects = self.battle_state.get('field_effects', {})
+        
+        # Terrain effects
+        terrain = field_effects.get('terrain', {})
+        if terrain.get('type') and terrain.get('type') != 'None':
+            turns_remaining = terrain.get('turns_remaining', 0)
+            if turns_remaining <= 0:
+                self._log(f"The {terrain.get('type')} faded.")
+                field_effects['terrain'] = {'type': 'None', 'turns_remaining': 0}
+        
+        # Trick Room
+        if field_effects.get('trick_room', False):
+            turns_remaining = field_effects.get('trick_room_turns', 0)
+            if turns_remaining <= 0:
+                self._log("The twisted dimensions returned to normal!")
+                field_effects['trick_room'] = False
+                field_effects['trick_room_turns'] = 0
+        
+        # Gravity
+        if field_effects.get('gravity', False):
+            turns_remaining = field_effects.get('gravity_turns', 0)
+            if turns_remaining <= 0:
+                self._log("Gravity returned to normal!")
+                field_effects['gravity'] = False
+                field_effects['gravity_turns'] = 0
+    
+    def _process_start_of_turn_abilities(self):
+        """Trigger abilities that activate at the start of turn"""
+        for pokemon in self._get_all_active_pokemon():
+            if pokemon.current_hp <= 0:
+                continue
+                
+            ability = pokemon.ability if hasattr(pokemon, 'ability') else None
+            if not ability:
+                continue
+            
+            # Speed Boost
+            if ability == 'Speed Boost':
+                pokemon.modify_stat_stage('speed', 1)
+                self._log(f"{pokemon.name}'s Speed Boost raised its Speed!")
+            
+            # Shed Skin (cure status)
+            elif ability == 'Shed Skin' and pokemon.status != 'healthy':
+                if random.random() < 0.33:  # 33% chance
+                    old_status = pokemon.status
+                    pokemon.cure_status()
+                    self._log(f"{pokemon.name} shed its skin and cured its {old_status}!")
+            
+            # Poison Heal
+            elif ability == 'Poison Heal' and pokemon.status in ['poison', 'badly_poison']:
+                heal_amount = pokemon.max_hp // 8
+                pokemon.heal(heal_amount)
+                self._log(f"{pokemon.name} restored HP using its Poison Heal!")
+            
+            # Hydration (cure status in rain)
+            elif ability == 'Hydration' and self.battle_state.get('weather', {}).get('type') == 'Rain':
+                if pokemon.status != 'healthy':
+                    old_status = pokemon.status
+                    pokemon.cure_status()
+                    self._log(f"{pokemon.name} was cured of {old_status} by Hydration!")
+    
+    def _process_status_conditions(self):
+        """Process status condition effects and checks"""
+        for pokemon in self._get_all_active_pokemon():
+            if pokemon.current_hp <= 0:
+                continue
+            
+            status = pokemon.status
+            
+            # Poison damage
+            if status == 'poison':
+                damage = pokemon.max_hp // 8
+                pokemon.take_damage(damage)
+                self._log(f"{pokemon.name} is hurt by poison! (-{damage} HP)")
+            
+            # Badly poisoned damage (increases each turn)
+            elif status == 'badly_poison':
+                toxic_counter = pokemon.toxic_counter if hasattr(pokemon, 'toxic_counter') else 1
+                damage = (pokemon.max_hp * toxic_counter) // 16
+                pokemon.take_damage(damage)
+                self._log(f"{pokemon.name} is hurt by poison! (-{damage} HP)")
+                if hasattr(pokemon, 'toxic_counter'):
+                    pokemon.toxic_counter += 1
+            
+            # Burn damage (and Attack reduction handled in damage calculation)
+            elif status == 'burn':
+                damage = pokemon.max_hp // 16
+                pokemon.take_damage(damage)
+                self._log(f"{pokemon.name} is hurt by its burn! (-{damage} HP)")
+            
+            # Sleep counter decrement
+            elif status == 'sleep':
+                if pokemon.sleep_turns > 0:
+                    pokemon.sleep_turns -= 1
+                    if pokemon.sleep_turns == 0:
+                        pokemon.cure_status()
+                        self._log(f"{pokemon.name} woke up!")
+                    else:
+                        self._log(f"{pokemon.name} is fast asleep.")
+            
+            # Freeze thaw check (~20% chance)
+            elif status == 'freeze':
+                if random.random() < 0.20:
+                    pokemon.cure_status()
+                    self._log(f"{pokemon.name} thawed out!")
+                else:
+                    self._log(f"{pokemon.name} is frozen solid!")
+            
+            # Confusion self-hit check
+            if pokemon.confused:
+                if pokemon.confusion_turns > 0:
+                    pokemon.confusion_turns -= 1
+                    if pokemon.confusion_turns == 0:
+                        pokemon.confused = False
+                        self._log(f"{pokemon.name} snapped out of confusion!")
+                    else:
+                        # 33% chance to hit self
+                        if random.random() < 0.33:
+                            # Calculate confusion self-damage
+                            damage = self._calculate_confusion_damage(pokemon)
+                            pokemon.take_damage(damage)
+                            self._log(f"{pokemon.name} hurt itself in confusion! (-{damage} HP)")
+    
+    def _process_start_of_turn_items(self):
+        """Process held item effects at start of turn"""
+        for pokemon in self._get_all_active_pokemon():
+            if pokemon.current_hp <= 0:
+                continue
+                
+            held_item = pokemon.held_item if hasattr(pokemon, 'held_item') else None
+            if not held_item:
+                continue
+            
+            # Leftovers
+            if held_item == 'Leftovers':
+                heal_amount = pokemon.max_hp // 16
+                pokemon.heal(heal_amount)
+                self._log(f"{pokemon.name} restored HP using its Leftovers!")
+            
+            # Black Sludge
+            elif held_item == 'Black Sludge':
+                if pokemon.type1 == 'Poison' or pokemon.type2 == 'Poison':
+                    heal_amount = pokemon.max_hp // 16
+                    pokemon.heal(heal_amount)
+                    self._log(f"{pokemon.name} restored HP using its Black Sludge!")
+                else:
+                    damage = pokemon.max_hp // 8
+                    pokemon.take_damage(damage)
+                    self._log(f"{pokemon.name} was hurt by the Black Sludge! (-{damage} HP)")
+            
+            # Flame Orb activation (if not already burned)
+            elif held_item == 'Flame Orb' and pokemon.status == 'healthy':
+                if self.battle_state.get('turn_count', 1) > 1:  # Activates after first turn
+                    pokemon.apply_status('burn')
+                    self._log(f"{pokemon.name} was burned by its Flame Orb!")
+            
+            # Toxic Orb activation (if not already poisoned)
+            elif held_item == 'Toxic Orb' and pokemon.status == 'healthy':
+                if self.battle_state.get('turn_count', 1) > 1:
+                    pokemon.apply_status('badly_poison')
+                    self._log(f"{pokemon.name} was badly poisoned by its Toxic Orb!")
+    
+    def _process_effect_endings(self):
+        """Process effects that end at start of turn"""
+        for pokemon in self._get_all_active_pokemon():
+            # Roost: restore Flying type if used last turn
+            if hasattr(pokemon, 'roosted') and pokemon.roosted:
+                pokemon.roosted = False
+                # Restore flying type logic would go here
+    
+    # ========== PHASE 2: ACTION EXECUTION ==========
+    
+    def _sort_actions(self, actions: List[BattleAction]) -> List[BattleAction]:
+        """
+        Sort actions by priority and speed
+        
+        Returns actions in order of execution
+        """
+        # Separate by priority bracket
+        sorted_actions = sorted(actions, key=lambda a: (
+            -a.priority,  # Higher priority first (negative for descending)
+            -self._calculate_effective_speed(a.pokemon),  # Higher speed first
+            random.random()  # Random tiebreaker
+        ))
+        
+        # Check for Trick Room reversal
+        field_effects = self.battle_state.get('field_effects', {})
+        if field_effects.get('trick_room', False):
+            # Within each priority bracket, reverse speed order
+            # Group by priority, reverse speed within groups
+            priority_groups = {}
+            for action in sorted_actions:
+                if action.priority not in priority_groups:
+                    priority_groups[action.priority] = []
+                priority_groups[action.priority].append(action)
+            
+            # Reverse speed order within each priority group
+            sorted_actions = []
+            for priority in sorted(priority_groups.keys(), reverse=True):
+                group = priority_groups[priority]
+                # Sort by speed ascending (slowest first) in Trick Room
+                group.sort(key=lambda a: (
+                    self._calculate_effective_speed(a.pokemon),
+                    random.random()
+                ))
+                sorted_actions.extend(group)
+        
+        return sorted_actions
+    
+    def _calculate_effective_speed(self, pokemon) -> int:
+        """Calculate effective speed with all modifiers"""
+        # Use the Pokemon's get_effective_stat method which includes stage changes and status
+        base_speed = pokemon.get_effective_stat('speed')
+        
+        # Tailwind doubles speed (paralysis already handled in get_effective_stat)
+        # Check which side the pokemon is on
+        side_effects = self._get_side_effects(pokemon)
+        if side_effects.get('tailwind', False):
+            base_speed *= 2
+        
+        # Choice Scarf multiplies by 1.5
+        if hasattr(pokemon, 'held_item') and pokemon.held_item == 'Choice Scarf':
+            base_speed = int(base_speed * 1.5)
+        
+        return base_speed
+    
+    def _phase_execute_actions(self, actions: List[BattleAction]):
+        """Execute all actions in sorted order"""
+        for action in actions:
+            pokemon = action.pokemon
+            
+            # Skip if Pokemon fainted
+            if pokemon.current_hp <= 0:
+                continue
+            
+            # Execute based on action type
+            if action.action_type == ActionType.SWITCH:
+                self._execute_switch(pokemon, action.switch_target)
+            elif action.action_type == ActionType.FIGHT:
+                self._execute_move(pokemon, action.move, action.target)
+    
+    def _execute_switch(self, pokemon, switch_target):
+        """Execute a Pokemon switch"""
+        # Handle switch-out effects (trapping moves, etc.)
+        if pokemon.trapped and not self._can_switch(pokemon):
+            self._log(f"{pokemon.name} can't switch out!")
+            return
+        
+        # Reset volatile status on switch
+        pokemon.reset_volatile_conditions()
+        
+        # Perform the switch
+        self._log(f"{pokemon.trainer} withdrew {pokemon.name}!")
+        
+        # Update battle state with new Pokemon
+        if pokemon == self.battle_state.get('player1_active'):
+            self.battle_state['player1_active'] = switch_target
+        else:
+            self.battle_state['player2_active'] = switch_target
+        
+        self._log(f"{pokemon.trainer} sent out {switch_target.name}!")
+        
+        # Apply entry hazards
+        self._apply_entry_hazards(switch_target)
+        
+        # Trigger switch-in abilities
+        self._trigger_switch_in_ability(switch_target)
+    
+    def _execute_move(self, user, move, target):
+        """Execute a move with full battle mechanics"""
+        move_name = move.get('name', 'Unknown Move')
+        
+        # Pre-move checks
+        if not self._can_use_move(user, move):
+            return
+        
+        self._log(f"{user.name} used {move_name}!")
+        
+        # Decrement PP
+        if hasattr(user, 'current_moves'):
+            # Find and decrement PP for this move
+            pass
+        
+        # Handle status moves first (Protect, Detect, stat changes, etc.)
+        if not move.get('causes_damage', False):
+            self._handle_status_move(user, target, move)
+            return
+        
+        # Protection check (Protect, Detect, etc.)
+        if self._is_protected(target, move):
+            self._log(f"{target.name} protected itself!")
+            return
+        
+        # Accuracy check
+        if not self._accuracy_check(user, target, move):
+            self._log(f"{user.name}'s attack missed!")
+            return
+        
+        # Damage calculation (if damaging move)
+        damage = 0
+        critical_hit = False
+        
+        if move.get('causes_damage', False):
+            damage, critical_hit = self._calculate_damage(user, target, move)
+            
+            if critical_hit:
+                self._log("A critical hit!")
+            
+            # Type effectiveness messages
+            effectiveness = self._get_type_effectiveness(move.get('type'), target)
+            if effectiveness > 1.0:
+                self._log("It's super effective!")
+            elif effectiveness < 1.0 and effectiveness > 0:
+                self._log("It's not very effective...")
+            elif effectiveness == 0:
+                self._log("It doesn't affect {target.name}...")
+                return
+            
+            # Apply damage
+            target.take_damage(damage)
+            self._log(f"{target.name} took {damage} damage!")
+        
+        # Apply move effects
+        self._apply_move_effects(user, target, move, damage, critical_hit)
+        
+        # Drain/Absorb moves (heal based on damage dealt)
+        move_name = move.get('name', '')
+        drain_moves = ['Absorb', 'Mega Drain', 'Giga Drain', 'Drain Punch', 'Draining Kiss', 
+                       'Horn Leech', 'Parabolic Charge', 'Leech Life', 'Dream Eater']
+        if move_name in drain_moves and damage > 0:
+            heal_amount = damage // 2  # Most drain moves heal 50% of damage dealt
+            if move_name in ['Giga Drain', 'Drain Punch']:
+                heal_amount = (damage * 75) // 100  # These heal 75%
+            
+            actual_heal = min(heal_amount, user.max_hp - user.current_hp)
+            user.current_hp = min(user.max_hp, user.current_hp + actual_heal)
+            if actual_heal > 0:
+                self._log(f"{user.name} restored {actual_heal} HP!")
+        
+        # Recoil damage
+        if move.get('recoil_percentage', 0) > 0:
+            recoil = (damage * move['recoil_percentage']) // 100
+            user.take_damage(recoil)
+            self._log(f"{user.name} took {recoil} recoil damage!")
+    
+    def _can_use_move(self, pokemon, move) -> bool:
+        """Check if Pokemon can use the move"""
+        # Sleep check
+        if pokemon.status == 'sleep':
+            self._log(f"{pokemon.name} is fast asleep!")
+            return False
+        
+        # Freeze check
+        if pokemon.status == 'freeze':
+            self._log(f"{pokemon.name} is frozen solid!")
+            return False
+        
+        # Paralysis check (25% chance to be fully paralyzed)
+        if pokemon.status == 'paralysis':
+            if random.random() < 0.25:
+                self._log(f"{pokemon.name} is paralyzed! It can't move!")
+                return False
+        
+        # Confusion check (handled separately but can prevent move)
+        if pokemon.confused:
+            if random.random() < 0.33:
+                damage = self._calculate_confusion_damage(pokemon)
+                pokemon.take_damage(damage)
+                self._log(f"{pokemon.name} hurt itself in confusion! (-{damage} HP)")
+                return False
+        
+        # Flinch check
+        if hasattr(pokemon, 'flinched') and pokemon.flinched:
+            self._log(f"{pokemon.name} flinched!")
+            pokemon.flinched = False
+            return False
+        
+        # Disabled/Taunted checks
+        if not pokemon.can_use_move(move):
+            self._log(f"{pokemon.name} can't use {move.get('name')}!")
+            return False
+        
+        return True
+    
+    def _is_protected(self, target, move) -> bool:
+        """Check if target is protected from this move"""
+        if not hasattr(target, 'protected') or not target.protected:
+            return False
+        
+        # Some moves bypass protection
+        if move.get('bypasses_protection', False):
+            return False
+        
+        return True
+    
+    def _accuracy_check(self, user, target, move) -> bool:
+        """Perform accuracy check"""
+        # Moves that never miss
+        if move.get('never_miss', False):
+            return True
+        
+        move_accuracy = move.get('accuracy')
+        if move_accuracy is None:
+            return True  # Status moves with no accuracy always hit
+        
+        # Calculate accuracy modifiers
+        accuracy_stage = user.stat_stages.get('accuracy', 0)
+        evasion_stage = target.stat_stages.get('evasion', 0)
+        
+        # Stat stage modifier
+        stage_diff = accuracy_stage - evasion_stage
+        if stage_diff >= 0:
+            modifier = (3 + stage_diff) / 3
+        else:
+            modifier = 3 / (3 - stage_diff)
+        
+        final_accuracy = move_accuracy * modifier
+        
+        # Roll for hit
+        return random.randint(1, 100) <= final_accuracy
+    
+    def _calculate_damage(self, attacker, defender, move) -> Tuple[int, bool]:
+        """
+        Calculate damage for a move
+        
+        Returns: (damage, critical_hit)
+        """
+        # Get move power
+        power = move.get('power', 0)
+        if power == 0:
+            return 0, False
+        
+        # Determine if physical or special
+        category = move.get('category', 'Physical')
+        if category == 'Physical':
+            attack_stat = attacker.get_effective_stat('attack')
+            defense_stat = defender.get_effective_stat('defense')
+            
+            # Burn halves physical attack
+            if attacker.status == 'burn':
+                attack_stat = attack_stat // 2
+        else:  # Special
+            attack_stat = attacker.get_effective_stat('sp_attack')
+            defense_stat = defender.get_effective_stat('sp_defense')
+        
+        # Critical hit check
+        crit_stage = 0  # Can be modified by items/abilities
+        crit_chance = [1/24, 1/8, 1/2, 1/1][min(crit_stage, 3)]
+        critical_hit = random.random() < crit_chance
+        
+        if critical_hit:
+            # Ignore negative attack stages and positive defense stages
+            attack_stat = attacker.attack if category == 'Physical' else attacker.sp_attack
+            defense_stat = defender.defense if category == 'Physical' else defender.sp_defense
+        
+        # Level (assume level 50 for now, or get from Pokemon)
+        level = getattr(attacker, 'level', 50)
+        
+        # Base damage formula
+        damage = ((2 * level / 5 + 2) * power * attack_stat / defense_stat) / 50 + 2
+        
+        # Critical hit multiplier
+        if critical_hit:
+            damage = damage * 1.5
+        
+        # STAB (Same Type Attack Bonus)
+        move_type = move.get('type')
+        if move_type == attacker.type1 or move_type == attacker.type2:
+            damage = damage * 1.5
+        
+        # Type effectiveness
+        effectiveness = self._get_type_effectiveness(move_type, defender)
+        damage = damage * effectiveness
+        
+        # Weather modifiers
+        weather = self.battle_state.get('weather', {}).get('type')
+        if weather == 'Sun':
+            if move_type == 'Fire':
+                damage = damage * 1.5
+            elif move_type == 'Water':
+                damage = damage * 0.5
+        elif weather == 'Rain':
+            if move_type == 'Water':
+                damage = damage * 1.5
+            elif move_type == 'Fire':
+                damage = damage * 0.5
+        
+        # Random factor (85% to 100%)
+        damage = damage * random.randint(85, 100) / 100
+        
+        return int(damage), critical_hit
+    
+    def _get_type_effectiveness(self, attack_type: str, defender) -> float:
+        """Calculate type effectiveness multiplier"""
+        # Simplified type chart - expand as needed
+        type_chart = {
+            'Fire': {'Grass': 2.0, 'Ice': 2.0, 'Bug': 2.0, 'Steel': 2.0,
+                    'Water': 0.5, 'Fire': 0.5, 'Rock': 0.5, 'Dragon': 0.5},
+            'Water': {'Fire': 2.0, 'Ground': 2.0, 'Rock': 2.0,
+                     'Water': 0.5, 'Grass': 0.5, 'Dragon': 0.5},
+            'Grass': {'Water': 2.0, 'Ground': 2.0, 'Rock': 2.0,
+                     'Fire': 0.5, 'Grass': 0.5, 'Poison': 0.5, 'Flying': 0.5,
+                     'Bug': 0.5, 'Dragon': 0.5, 'Steel': 0.5},
+            'Electric': {'Water': 2.0, 'Flying': 2.0,
+                        'Electric': 0.5, 'Grass': 0.5, 'Dragon': 0.5,
+                        'Ground': 0.0},
+            'Fighting': {'Normal': 2.0, 'Ice': 2.0, 'Rock': 2.0, 'Dark': 2.0, 'Steel': 2.0,
+                        'Poison': 0.5, 'Flying': 0.5, 'Psychic': 0.5, 'Bug': 0.5, 'Fairy': 0.5,
+                        'Ghost': 0.0},
+            # Add more type matchups as needed
+        }
+        
+        multiplier = 1.0
+        
+        # Check against both types
+        for def_type in [defender.type1, defender.type2]:
+            if def_type and attack_type in type_chart:
+                multiplier *= type_chart[attack_type].get(def_type, 1.0)
+        
+        return multiplier
+    
+    def _apply_move_effects(self, user, target, move, damage: int, critical_hit: bool):
+        """Apply secondary effects of a move"""
+        # This would integrate with the Move_efffect.py system
+        # For now, basic implementation
+        
+        effects = move.get('effects', [])
+        for effect in effects:
+            effect_name = effect.get('name', '')
+            probability = effect.get('probability', 100)
+            
+            # Roll for effect activation
+            if random.randint(1, 100) > probability:
+                continue
+            
+            # Status effects
+            if 'Burn' in effect_name and target.status == 'healthy':
+                target.apply_status('burn')
+                self._log(f"{target.name} was burned!")
+            elif 'Paralyze' in effect_name and target.status == 'healthy':
+                target.apply_status('paralysis')
+                self._log(f"{target.name} was paralyzed!")
+            elif 'Poison' in effect_name and target.status == 'healthy':
+                if 'Badly' in effect_name:
+                    target.apply_status('badly_poison')
+                    self._log(f"{target.name} was badly poisoned!")
+                else:
+                    target.apply_status('poison')
+                    self._log(f"{target.name} was poisoned!")
+            elif 'Freeze' in effect_name and target.status == 'healthy':
+                target.apply_status('freeze')
+                self._log(f"{target.name} was frozen!")
+            elif 'Sleep' in effect_name and target.status == 'healthy':
+                target.apply_status('sleep')
+                self._log(f"{target.name} fell asleep!")
+            
+            # Stat changes
+            elif 'Raise' in effect_name or 'Lower' in effect_name:
+                # Parse stat change
+                # Example: "Raise Attack 1" or "Lower Defense 2"
+                pass  # Implement stat change logic
+            
+            # Flinch
+            elif 'Flinch' in effect_name:
+                target.flinched = True
+    
+    def _handle_status_move(self, user, target, move):
+        """Handle non-damaging status moves"""
+        move_name = move.get('name', '')
+        
+        # Protection moves (Protect, Detect, etc.)
+        if move_name in ['Protect', 'Detect', 'Spiky Shield', 'Baneful Bunker', 'King\'s Shield']:
+            user.protected = True
+            self._log(f"{user.name} protected itself!")
+            return
+        
+        # Stat-changing moves
+        if 'Dragon Dance' in move_name:
+            user.modify_stat_stage('attack', 1)
+            user.modify_stat_stage('speed', 1)
+            self._log(f"{user.name}'s Attack and Speed rose!")
+        elif 'Swords Dance' in move_name:
+            user.modify_stat_stage('attack', 2)
+            self._log(f"{user.name}'s Attack sharply rose!")
+        elif 'Nasty Plot' in move_name:
+            user.modify_stat_stage('sp_attack', 2)
+            self._log(f"{user.name}'s Special Attack sharply rose!")
+        elif 'Calm Mind' in move_name:
+            user.modify_stat_stage('sp_attack', 1)
+            user.modify_stat_stage('sp_defense', 1)
+            self._log(f"{user.name}'s Special Attack and Special Defense rose!")
+        
+        # Status-inflicting moves
+        elif 'Thunder Wave' in move_name:
+            if target.status is None or target.status == '':
+                target.apply_status('paralysis')
+                self._log(f"{target.name} was paralyzed!")
+            else:
+                self._log(f"But it failed!")
+        elif 'Toxic' in move_name:
+            if target.status is None or target.status == '':
+                target.apply_status('badly_poison')
+                self._log(f"{target.name} was badly poisoned!")
+            else:
+                self._log(f"But it failed!")
+        elif 'Will-O-Wisp' in move_name:
+            if target.status is None or target.status == '':
+                target.apply_status('burn')
+                self._log(f"{target.name} was burned!")
+            else:
+                self._log(f"But it failed!")
+        
+        # Healing moves
+        elif move_name in ['Recover', 'Soft-Boiled', 'Milk Drink', 'Slack Off', 'Roost', 'Synthesis', 'Moonlight', 'Morning Sun']:
+            heal_amount = user.max_hp // 2
+            actual_heal = min(heal_amount, user.max_hp - user.current_hp)
+            user.current_hp = min(user.max_hp, user.current_hp + actual_heal)
+            if actual_heal > 0:
+                self._log(f"{user.name} restored {actual_heal} HP!")
+            else:
+                self._log(f"But it failed!")
+    
+    def _calculate_confusion_damage(self, pokemon) -> int:
+        """Calculate self-inflicted confusion damage"""
+        # Confusion damage is typeless 40 power physical move
+        attack = pokemon.get_effective_stat('attack')
+        defense = pokemon.get_effective_stat('defense')
+        level = getattr(pokemon, 'level', 50)
+        
+        damage = ((2 * level / 5 + 2) * 40 * attack / defense) / 50 + 2
+        return int(damage)
+    
+    # ========== PHASE 3: END-OF-TURN EFFECTS ==========
+    
+    def _phase_end_turn(self):
+        """Execute all end-of-turn effects"""
+        # self._log("=== End of Turn ===")  # Don't clutter output
+        
+        # 1. Weather damage (again for some mechanics)
+        # Already handled in pre-turn
+        
+        # 2. End-of-turn abilities
+        self._process_end_of_turn_abilities()
+        
+        # 3. End-of-turn items
+        self._process_end_of_turn_items()
+        
+        # 4. Volatile status effects
+        self._process_volatile_effects()
+        
+        # 5. Decrement turn counters
+        self._decrement_turn_counters()
+    
+    def _process_end_of_turn_abilities(self):
+        """Process abilities that trigger at end of turn"""
+        for pokemon in self._get_all_active_pokemon():
+            if pokemon.current_hp <= 0:
+                continue
+            
+            ability = pokemon.ability if hasattr(pokemon, 'ability') else None
+            if not ability:
+                continue
+            
+            # Bad Dreams (damages sleeping opponents)
+            if ability == 'Bad Dreams':
+                for opponent in self._get_opponents(pokemon):
+                    if opponent.status == 'sleep':
+                        damage = opponent.max_hp // 8
+                        opponent.take_damage(damage)
+                        self._log(f"{opponent.name} was tormented by Bad Dreams! (-{damage} HP)")
+            
+            # Ice Body (heal in hail)
+            elif ability == 'Ice Body' and self.battle_state.get('weather', {}).get('type') == 'Hail':
+                heal_amount = pokemon.max_hp // 16
+                pokemon.heal(heal_amount)
+                self._log(f"{pokemon.name} restored HP with Ice Body!")
+            
+            # Rain Dish (heal in rain)
+            elif ability == 'Rain Dish' and self.battle_state.get('weather', {}).get('type') == 'Rain':
+                heal_amount = pokemon.max_hp // 16
+                pokemon.heal(heal_amount)
+                self._log(f"{pokemon.name} restored HP with Rain Dish!")
+    
+    def _process_end_of_turn_items(self):
+        """Process held items at end of turn"""
+        for pokemon in self._get_all_active_pokemon():
+            if pokemon.current_hp <= 0:
+                continue
+            
+            held_item = pokemon.held_item if hasattr(pokemon, 'held_item') else None
+            if not held_item:
+                continue
+            
+            # Shell Bell healing is handled after damage dealt
+            pass
+    
+    def _process_volatile_effects(self):
+        """Process end-of-turn volatile effects"""
+        for pokemon in self._get_all_active_pokemon():
+            if pokemon.current_hp <= 0:
+                continue
+            
+            # Let Pokemon class handle its own end-of-turn processing
+            if hasattr(pokemon, 'process_end_of_turn_effects'):
+                effects = pokemon.process_end_of_turn_effects()
+                
+                # Log the effects
+                if effects.get('burn_damage', 0) > 0:
+                    self._log(f"{pokemon.name} was hurt by its burn!")
+                if effects.get('poison_damage', 0) > 0:
+                    self._log(f"{pokemon.name} was hurt by poison!")
+                if effects.get('leech_seed_damage', 0) > 0:
+                    self._log(f"{pokemon.name} was hurt by Leech Seed!")
+                if effects.get('trap_damage', 0) > 0:
+                    self._log(f"{pokemon.name} was hurt by the trap!")
+                if effects.get('curse_damage', 0) > 0:
+                    self._log(f"{pokemon.name} was hurt by the curse!")
+                if effects.get('aqua_ring_heal', 0) > 0:
+                    self._log(f"{pokemon.name} restored HP with Aqua Ring!")
+                if effects.get('ingrain_heal', 0) > 0:
+                    self._log(f"{pokemon.name} restored HP with Ingrain!")
+                if effects.get('woke_up'):
+                    self._log(f"{pokemon.name} woke up!")
+                if effects.get('thawed'):
+                    self._log(f"{pokemon.name} thawed out!")
+                if effects.get('fell_asleep'):
+                    self._log(f"{pokemon.name} fell asleep from Yawn!")
+    
+    def _decrement_turn_counters(self):
+        """Decrement all active turn counters"""
+        # Weather
+        weather = self.battle_state.get('weather', {})
+        if weather.get('turns_remaining', 0) > 0:
+            weather['turns_remaining'] -= 1
+        
+        # Field effects
+        field_effects = self.battle_state.get('field_effects', {})
+        
+        # Terrain
+        terrain = field_effects.get('terrain', {})
+        if terrain.get('turns_remaining', 0) > 0:
+            terrain['turns_remaining'] -= 1
+        
+        # Trick Room
+        if field_effects.get('trick_room_turns', 0) > 0:
+            field_effects['trick_room_turns'] -= 1
+        
+        # Gravity
+        if field_effects.get('gravity_turns', 0) > 0:
+            field_effects['gravity_turns'] -= 1
+        
+        # Side effects (Reflect, Light Screen, Tailwind, etc.)
+        for side in ['player1', 'player2']:
+            side_effects = self.battle_state.get(f'{side}_side_effects', {})
+            
+            if side_effects.get('reflect_turns', 0) > 0:
+                side_effects['reflect_turns'] -= 1
+                if side_effects['reflect_turns'] == 0:
+                    self._log(f"{side}'s Reflect wore off!")
+            
+            if side_effects.get('light_screen_turns', 0) > 0:
+                side_effects['light_screen_turns'] -= 1
+                if side_effects['light_screen_turns'] == 0:
+                    self._log(f"{side}'s Light Screen wore off!")
+            
+            if side_effects.get('tailwind_turns', 0) > 0:
+                side_effects['tailwind_turns'] -= 1
+                if side_effects['tailwind_turns'] == 0:
+                    self._log(f"{side}'s Tailwind wore off!")
+        
+        # Increment turn counter
+        self.battle_state['turn_count'] = self.battle_state.get('turn_count', 0) + 1
+    
+    # ========== PHASE 4: HANDLE FAINTS ==========
+    
+    def _phase_handle_faints(self):
+        """Handle Pokemon that fainted during the turn"""
+        # Collect all fainted Pokemon
+        for pokemon in self._get_all_active_pokemon():
+            if pokemon.current_hp <= 0 and pokemon not in self.fainted_pokemon:
+                self.fainted_pokemon.append(pokemon)
+                self._log(f"{pokemon.name} fainted!")
+        
+        # In a real implementation, would prompt for replacements
+        # For now, just log the faints
+    
+    # ========== PHASE 5: WIN CONDITION ==========
+    
+    def _check_win_condition(self) -> Optional[str]:
+        """Check if either player has won"""
+        player1_has_usable = self._has_usable_pokemon('player1')
+        player2_has_usable = self._has_usable_pokemon('player2')
+        
+        if not player1_has_usable and not player2_has_usable:
+            self._log("It's a draw!")
+            return 'draw'
+        elif not player1_has_usable:
+            self._log("Player 2 wins!")
+            return 'player2'
+        elif not player2_has_usable:
+            self._log("Player 1 wins!")
+            return 'player1'
+        
+        return None
+    
+    def _has_usable_pokemon(self, player: str) -> bool:
+        """Check if player has any Pokemon that can battle"""
+        team = self.battle_state.get(f'{player}_team', [])
+        for pokemon in team:
+            if pokemon.current_hp > 0:
+                return True
+        return False
+    
+    # ========== HELPER METHODS ==========
+    
+    def _get_all_active_pokemon(self) -> List:
+        """Get all currently active Pokemon"""
+        active = []
+        if self.battle_state.get('player1_active'):
+            active.append(self.battle_state['player1_active'])
+        if self.battle_state.get('player2_active'):
+            active.append(self.battle_state['player2_active'])
+        return active
+    
+    def _get_opponents(self, pokemon) -> List:
+        """Get opponent Pokemon"""
+        if pokemon == self.battle_state.get('player1_active'):
+            return [self.battle_state.get('player2_active')]
+        else:
+            return [self.battle_state.get('player1_active')]
+    
+    def _get_side_effects(self, pokemon) -> Dict:
+        """Get side effects for the Pokemon's side"""
+        if pokemon == self.battle_state.get('player1_active'):
+            return self.battle_state.get('player1_side_effects', {})
+        else:
+            return self.battle_state.get('player2_side_effects', {})
+    
+    def _can_switch(self, pokemon) -> bool:
+        """Check if Pokemon can switch out"""
+        # Check for trapping moves/abilities
+        if hasattr(pokemon, 'trapped') and pokemon.trapped:
+            return False
+        
+        # Ingrain prevents switching
+        if hasattr(pokemon, 'ingrain') and pokemon.ingrain:
+            return False
+        
+        return True
+    
+    def _apply_entry_hazards(self, pokemon):
+        """Apply entry hazard damage when Pokemon switches in"""
+        # Determine which side
+        if pokemon == self.battle_state.get('player1_active'):
+            hazards = self.battle_state.get('player1_side_effects', {}).get('hazards', {})
+        else:
+            hazards = self.battle_state.get('player2_side_effects', {}).get('hazards', {})
+        
+        # Stealth Rock
+        if hazards.get('stealth_rock'):
+            # Calculate type effectiveness against Rock type
+            effectiveness = self._get_type_effectiveness('Rock', pokemon)
+            damage = int(pokemon.max_hp * effectiveness / 8)
+            pokemon.take_damage(damage)
+            self._log(f"{pokemon.name} was hurt by Stealth Rock! (-{damage} HP)")
+        
+        # Spikes
+        spikes_layers = hazards.get('spikes', 0)
+        if spikes_layers > 0 and pokemon.type1 != 'Flying' and pokemon.type2 != 'Flying':
+            damage = pokemon.max_hp * spikes_layers // 8
+            pokemon.take_damage(damage)
+            self._log(f"{pokemon.name} was hurt by Spikes! (-{damage} HP)")
+        
+        # Toxic Spikes
+        toxic_spikes_layers = hazards.get('toxic_spikes', 0)
+        if toxic_spikes_layers > 0 and pokemon.status == 'healthy':
+            if pokemon.type1 != 'Flying' and pokemon.type2 != 'Flying':
+                if toxic_spikes_layers == 1:
+                    pokemon.apply_status('poison')
+                    self._log(f"{pokemon.name} was poisoned by Toxic Spikes!")
+                else:
+                    pokemon.apply_status('badly_poison')
+                    self._log(f"{pokemon.name} was badly poisoned by Toxic Spikes!")
+    
+    def _trigger_switch_in_ability(self, pokemon):
+        """Trigger ability when Pokemon switches in"""
+        ability = pokemon.ability if hasattr(pokemon, 'ability') else None
+        if not ability:
+            return
+        
+        # Intimidate
+        if ability == 'Intimidate':
+            for opponent in self._get_opponents(pokemon):
+                opponent.modify_stat_stage('attack', -1)
+                self._log(f"{pokemon.name}'s Intimidate lowered {opponent.name}'s Attack!")
+        
+        # Weather abilities
+        elif ability == 'Drought':
+            self.battle_state['weather'] = {'type': 'Sun', 'turns_remaining': 5}
+            self._log(f"{pokemon.name}'s Drought intensified the sun!")
+        elif ability == 'Drizzle':
+            self.battle_state['weather'] = {'type': 'Rain', 'turns_remaining': 5}
+            self._log(f"{pokemon.name}'s Drizzle made it rain!")
+        elif ability == 'Sand Stream':
+            self.battle_state['weather'] = {'type': 'Sandstorm', 'turns_remaining': 5}
+            self._log(f"{pokemon.name}'s Sand Stream whipped up a sandstorm!")
+        elif ability == 'Snow Warning':
+            self.battle_state['weather'] = {'type': 'Hail', 'turns_remaining': 5}
+            self._log(f"{pokemon.name}'s Snow Warning made it hail!")
+    
+    def _log(self, message: str):
+        """Add message to turn log"""
+        self.turn_log.append(message)

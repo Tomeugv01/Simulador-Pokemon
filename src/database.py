@@ -279,6 +279,27 @@ class DatabaseManager:
             ('Stat Dependent Damage', 'Uses higher of Attack or Sp. Attack', 'DAMAGE_MODIFIER', 'None', None, 0, 0, 0, 0, None, None, 'User'),
             ('Terrain Dependent', 'Effect changes with active terrain', 'DAMAGE_MODIFIER', 'None', None, 0, 0, 0, 0, None, None, 'User'),
             ('Stat Boost Scaling', '+20 power per stat boost', 'DAMAGE_MODIFIER', 'None', None, 0, 0, 0, 0, None, None, 'User'),
+            
+            # New competitive move effects
+            ('Create Substitute', 'Creates substitute with 1/4 max HP', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'User'),
+            ('Encore', 'Forces target to repeat last move for 3 turns', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'Target'),
+            ('Disable', 'Disables target last move for 4 turns', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'Target'),
+            ('Torment', 'Target cannot use same move twice in a row', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'Target'),
+            ('Trick Room', 'Slower Pokemon move first for 5 turns', 'FIELD_EFFECT', 'None', None, 0, 0, 0, 0, None, 'TrickRoom', 'Field'),
+            ('Tailwind', 'Doubles Speed for 4 turns', 'FIELD_EFFECT', 'None', None, 0, 0, 0, 0, None, 'Tailwind', 'UserSide'),
+            ('Yawn', 'Target falls asleep next turn', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'Target'),
+            ('Wish', 'Heals 50% HP next turn', 'HEAL', 'None', None, 0, 50, 0, 0, None, None, 'User'),
+            ('Ingrain', 'Heals 1/16 HP per turn, cannot switch', 'HEAL', 'None', None, 0, 6, 0, 0, None, None, 'User'),
+            ('Aqua Ring', 'Heals 1/16 HP per turn', 'HEAL', 'None', None, 0, 6, 0, 0, None, None, 'User'),
+            ('Electric Terrain', 'Sets Electric Terrain for 5 turns', 'FIELD_EFFECT', 'None', None, 0, 0, 0, 0, None, 'ElectricTerrain', 'Field'),
+            ('Grassy Terrain', 'Sets Grassy Terrain for 5 turns', 'FIELD_EFFECT', 'None', None, 0, 0, 0, 0, None, 'GrassyTerrain', 'Field'),
+            ('Misty Terrain', 'Sets Misty Terrain for 5 turns', 'FIELD_EFFECT', 'None', None, 0, 0, 0, 0, None, 'MistyTerrain', 'Field'),
+            ('Psychic Terrain', 'Sets Psychic Terrain for 5 turns', 'FIELD_EFFECT', 'None', None, 0, 0, 0, 0, None, 'PsychicTerrain', 'Field'),
+            ('Remove Hazards', 'Removes hazards from field', 'FIELD_EFFECT', 'None', None, 0, 0, 0, 0, None, 'RemoveHazards', 'UserSide'),
+            ('Baton Pass', 'Switches out, passes stat changes', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'User'),
+            ('Safeguard', 'Prevents status conditions for 5 turns', 'FIELD_EFFECT', 'None', None, 0, 0, 0, 0, None, 'Safeguard', 'UserSide'),
+            ('Copy Stat Stages', 'Copies target stat stages', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'Target'),
+            ('Swap Items', 'Swaps held items with target', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'Target'),
         
         
         ]
@@ -695,6 +716,94 @@ class DatabaseManager:
             (363, 'Teatime', 'Normal', 'Status', 10, None, 100, False, False, 0, 'All', 'Forces all Pokémon to eat their berries.'),
             (364, 'Terrain Pulse', 'Normal', 'Special', 10, 50, 100, True, False, 0, 'Normal', 'Type and power change with active terrain.'),
             (365, 'Tri Attack', 'Normal', 'Special', 10, 80, 100, True, False, 0, 'Normal', 'May paralyze, burn, or freeze.'),
+            
+            # ADDITIONAL COMPETITIVE MOVES (366-428) - Only unique moves not in 1-365
+            # Status Moves
+            (366, 'Spikes', 'Ground', 'Status', 20, None, None, False, False, 0, 'Opponents_Field', 'Hurts Pokemon that switch in, up to 3 layers.'),
+            (367, 'Leech Seed', 'Grass', 'Status', 10, None, 90, False, False, 0, 'Normal', 'Drains HP every turn.'),
+            (368, 'Substitute', 'Normal', 'Status', 10, None, None, False, False, 0, 'Self', 'Creates a decoy with 1/4 max HP.'),
+            (369, 'Baton Pass', 'Normal', 'Status', 40, None, None, False, False, 0, 'Self', 'Switches out, passes stat changes.'),
+            (370, 'Detect', 'Fighting', 'Status', 5, None, None, False, False, 4, 'Self', 'Protects from attacks this turn.'),
+            (371, 'Encore', 'Normal', 'Status', 5, None, 100, False, False, 0, 'Normal', 'Forces target to repeat last move.'),
+            (372, 'Disable', 'Normal', 'Status', 20, None, 100, False, False, 0, 'Normal', 'Disables target last move used.'),
+            (373, 'Torment', 'Dark', 'Status', 15, None, 100, False, False, 0, 'Normal', 'Target cannot use same move twice.'),
+            (374, 'Trick Room', 'Psychic', 'Status', 5, None, None, False, False, -7, 'Field', 'Slower Pokemon move first for 5 turns.'),
+            
+            # Setup Moves (only unique)
+            (375, 'Bulk Up', 'Fighting', 'Status', 20, None, None, False, False, 0, 'Self', 'Raises user Attack and Defense.'),
+            (376, 'Amnesia', 'Psychic', 'Status', 20, None, None, False, False, 0, 'Self', 'Sharply raises user Sp. Defense.'),
+            (377, 'Agility', 'Psychic', 'Status', 30, None, None, False, False, 0, 'Self', 'Sharply raises user Speed.'),
+            (378, 'Shell Smash', 'Normal', 'Status', 15, None, None, False, False, 0, 'Self', 'Lowers defenses, sharply raises Attack, Sp. Attack, Speed.'),
+            
+            # Pivot Moves (only unique)
+            (379, 'Flip Turn', 'Water', 'Physical', 20, 60, 100, True, True, 0, 'Normal', 'User switches out after attacking.'),
+            (380, 'Teleport', 'Psychic', 'Status', 20, None, None, False, False, -6, 'Self', 'User switches out.'),
+            
+            # Hazard Control (only unique)
+            (381, 'Rapid Spin', 'Normal', 'Physical', 40, 50, 100, True, True, 0, 'Normal', 'Removes hazards from user side, raises Speed.'),
+            (382, 'Magic Coat', 'Psychic', 'Status', 15, None, None, False, False, 4, 'Self', 'Reflects status moves back.'),
+            
+            # Priority Moves (only unique)
+            (383, 'Aqua Jet', 'Water', 'Physical', 20, 40, 100, True, True, 1, 'Normal', 'Always strikes first.'),
+            (384, 'Extreme Speed', 'Normal', 'Physical', 5, 80, 100, True, True, 2, 'Normal', 'Nearly always strikes first.'),
+            (385, 'Quick Attack', 'Normal', 'Physical', 30, 40, 100, True, True, 1, 'Normal', 'Always strikes first.'),
+            (386, 'Water Shuriken', 'Water', 'Special', 20, 15, 100, True, False, 1, 'Normal', 'Hits 2-5 times, always strikes first.'),
+            (387, 'Feint', 'Normal', 'Physical', 10, 30, 100, True, False, 2, 'Normal', 'Bypasses Protect, high priority.'),
+            
+            # Sleep Moves (only unique)
+            (388, 'Spore', 'Grass', 'Status', 15, None, 100, False, False, 0, 'Normal', 'Puts target to sleep.'),
+            (389, 'Sleep Powder', 'Grass', 'Status', 15, None, 75, False, False, 0, 'Normal', 'Puts target to sleep.'),
+            (390, 'Hypnosis', 'Psychic', 'Status', 20, None, 60, False, False, 0, 'Normal', 'Puts target to sleep.'),
+            (391, 'Yawn', 'Normal', 'Status', 10, None, None, False, False, 0, 'Normal', 'Target falls asleep next turn.'),
+            (392, 'Rest', 'Psychic', 'Status', 10, None, None, False, False, 0, 'Self', 'User sleeps 2 turns, fully heals.'),
+            (393, 'Dream Eater', 'Psychic', 'Special', 15, 100, 100, True, False, 0, 'Normal', 'Only works on sleeping foes, drains HP.'),
+            
+            # Weather Moves (only unique)
+            (394, 'Rain Dance', 'Water', 'Status', 5, None, None, False, False, 0, 'Field', 'Summons rain for 5 turns.'),
+            (395, 'Sunny Day', 'Fire', 'Status', 5, None, None, False, False, 0, 'Field', 'Summons harsh sunlight for 5 turns.'),
+            (396, 'Sandstorm', 'Rock', 'Status', 10, None, None, False, False, 0, 'Field', 'Summons sandstorm for 5 turns.'),
+            (397, 'Hail', 'Ice', 'Status', 10, None, None, False, False, 0, 'Field', 'Summons hail for 5 turns.'),
+            (398, 'Weather Ball', 'Normal', 'Special', 10, 50, 100, True, False, 0, 'Normal', 'Type and power change with weather.'),
+            
+            # Terrain Moves (only unique)
+            (399, 'Electric Terrain', 'Electric', 'Status', 10, None, None, False, False, 0, 'Field', 'Sets electric terrain for 5 turns.'),
+            (400, 'Grassy Terrain', 'Grass', 'Status', 10, None, None, False, False, 0, 'Field', 'Sets grassy terrain for 5 turns.'),
+            (401, 'Misty Terrain', 'Fairy', 'Status', 10, None, None, False, False, 0, 'Field', 'Sets misty terrain for 5 turns.'),
+            (402, 'Psychic Terrain', 'Psychic', 'Status', 10, None, None, False, False, 0, 'Field', 'Sets psychic terrain for 5 turns.'),
+            
+            # Recovery Moves (only unique)
+            (403, 'Soft-Boiled', 'Normal', 'Status', 10, None, None, False, False, 0, 'Self', 'User recovers 50% HP.'),
+            (404, 'Moonlight', 'Fairy', 'Status', 5, None, None, False, False, 0, 'Self', 'Heals based on weather.'),
+            (405, 'Morning Sun', 'Normal', 'Status', 5, None, None, False, False, 0, 'Self', 'Heals based on weather.'),
+            (406, 'Synthesis', 'Grass', 'Status', 5, None, None, False, False, 0, 'Self', 'Heals based on weather.'),
+            (407, 'Slack Off', 'Normal', 'Status', 10, None, None, False, False, 0, 'Self', 'User recovers 50% HP.'),
+            (408, 'Milk Drink', 'Normal', 'Status', 10, None, None, False, False, 0, 'Self', 'User recovers 50% HP.'),
+            (409, 'Wish', 'Normal', 'Status', 10, None, None, False, False, 0, 'Self', 'Heals next turn or switched Pokemon.'),
+            (410, 'Ingrain', 'Grass', 'Status', 20, None, None, False, False, 0, 'Self', 'Heals 1/16 HP per turn, cannot switch.'),
+            (411, 'Aqua Ring', 'Water', 'Status', 20, None, None, False, False, 0, 'Self', 'Heals 1/16 HP per turn.'),
+            
+            # Utility Moves (only unique)
+            (412, 'Trick', 'Psychic', 'Status', 10, None, 100, False, False, 0, 'Normal', 'Swaps held items.'),
+            (413, 'Switcheroo', 'Dark', 'Status', 10, None, 100, False, False, 0, 'Normal', 'Swaps held items.'),
+            (414, 'Safeguard', 'Normal', 'Status', 25, None, None, False, False, 0, 'UserSide', 'Protects from status for 5 turns.'),
+            (415, 'Heal Bell', 'Normal', 'Status', 5, None, None, False, False, 0, 'UserSide', 'Cures party status conditions.'),
+            (416, 'Aromatherapy', 'Grass', 'Status', 5, None, None, False, False, 0, 'UserSide', 'Cures party status conditions.'),
+            (417, 'Psych Up', 'Normal', 'Status', 10, None, None, False, False, 0, 'Normal', 'Copies target stat stages.'),
+            
+            # Phasing Moves (only unique)
+            (418, 'Whirlwind', 'Normal', 'Status', 20, None, None, False, False, -6, 'Normal', 'Forces target to switch.'),
+            (419, 'Circle Throw', 'Fighting', 'Physical', 10, 60, 90, True, True, -6, 'Normal', 'Forces target to switch.'),
+            
+            # Multi-Hit Moves (only unique)
+            (420, 'Double Slap', 'Normal', 'Physical', 10, 15, 85, True, True, 0, 'Normal', 'Hits 2-5 times.'),
+            (421, 'Fury Attack', 'Normal', 'Physical', 20, 15, 85, True, True, 0, 'Normal', 'Hits 2-5 times.'),
+            (422, 'Pin Missile', 'Bug', 'Physical', 20, 25, 95, True, False, 0, 'Normal', 'Hits 2-5 times.'),
+            (423, 'Spike Cannon', 'Normal', 'Physical', 15, 20, 100, True, False, 0, 'Normal', 'Hits 2-5 times.'),
+            (424, 'Tail Slap', 'Normal', 'Physical', 10, 25, 85, True, True, 0, 'Normal', 'Hits 2-5 times.'),
+            (425, 'Bullet Seed', 'Grass', 'Physical', 30, 25, 100, True, False, 0, 'Normal', 'Hits 2-5 times.'),
+            (426, 'Double Kick', 'Fighting', 'Physical', 30, 30, 100, True, True, 0, 'Normal', 'Hits 2 times.'),
+            (427, 'Twineedle', 'Bug', 'Physical', 20, 25, 100, True, True, 0, 'Normal', 'Hits 2 times, may poison.'),
+            (428, 'Protect', 'Normal', 'Status', 10, None, None, False, False, 4, 'Self', 'Protects from attacks this turn.'),
         
         ]
         
@@ -1132,6 +1241,106 @@ class DatabaseManager:
         add_effect(365, 'Paralysis 20%', 20, 2)
         add_effect(365, 'Burn 20%', 20, 3)
         add_effect(365, 'Freeze 20%', 20, 4)
+
+        # NEW COMPETITIVE MOVES (366-428)
+        # Status Moves
+        add_effect(366, 'Set Spikes', 100, 1)
+        add_effect(367, 'Trap 4-5 Turns', 100, 1)  # Leech Seed
+        add_effect(368, 'Create Substitute', 100, 1)  # Substitute
+        add_effect(369, 'Baton Pass', 100, 1)  # Baton Pass
+        add_effect(370, 'Protect', 100, 1)  # Detect
+        add_effect(371, 'Encore', 100, 1)  # Encore
+        add_effect(372, 'Disable', 100, 1)  # Disable
+        add_effect(373, 'Torment', 100, 1)  # Torment
+        add_effect(374, 'Trick Room', 100, 1)  # Trick Room
+        
+        # Setup Moves
+        add_effect(375, 'Raise Attack 1', 100, 1)  # Bulk Up
+        add_effect(375, 'Raise Defense 1', 100, 2)
+        add_effect(376, 'Raise SpDefense 2', 100, 1)  # Amnesia
+        add_effect(377, 'Raise Speed 2', 100, 1)  # Agility
+        add_effect(378, 'Raise Attack 2', 100, 1)  # Shell Smash
+        add_effect(378, 'Raise SpAttack 2', 100, 2)
+        add_effect(378, 'Raise Speed 2', 100, 3)
+        add_effect(378, 'Lower Defense 1', 100, 4)
+        add_effect(378, 'Lower SpDefense 1', 100, 5)
+        
+        # Pivot Moves
+        add_effect(379, 'Switch Out', 100, 2)  # Flip Turn
+        add_effect(380, 'Switch Out', 100, 1)  # Teleport
+        
+        # Hazard Control
+        add_effect(381, 'Remove Hazards', 100, 1)  # Rapid Spin
+        add_effect(381, 'Raise Speed 1', 100, 2)
+        add_effect(382, 'Remove Hazards', 100, 1)  # Defog
+        add_effect(382, 'Lower Accuracy 1', 100, 2)
+        
+        # Priority Moves
+        add_effect(383, 'Priority +1', 100, 1)  # Aqua Jet
+        add_effect(384, 'Priority +1', 100, 1)  # Extreme Speed
+        add_effect(385, 'Priority +1', 100, 1)  # Quick Attack
+        add_effect(386, 'Multi Hit 2-5', 100, 1)  # Water Shuriken
+        add_effect(386, 'Priority +1', 100, 2)
+        add_effect(387, 'Ignore Protection', 100, 1)  # Feint
+        add_effect(387, 'Priority +1', 100, 2)
+        
+        # Sleep Moves
+        add_effect(388, 'Sleep', 100, 1)  # Spore
+        add_effect(389, 'Sleep', 100, 1)  # Sleep Powder
+        add_effect(390, 'Sleep', 100, 1)  # Hypnosis
+        add_effect(391, 'Yawn', 100, 1)  # Yawn
+        add_effect(392, 'Sleep', 100, 1)  # Rest
+        add_effect(392, 'Heal 50%', 100, 2)
+        add_effect(393, 'Drain 50%', 100, 2)  # Dream Eater
+        
+        # Weather Moves
+        add_effect(394, 'Set Rain', 100, 1)  # Rain Dance
+        add_effect(395, 'Set Sun', 100, 1)  # Sunny Day
+        add_effect(396, 'Set Sandstorm', 100, 1)  # Sandstorm
+        add_effect(397, 'Set Hail', 100, 1)  # Hail
+        add_effect(398, 'Terrain Dependent', 100, 1)  # Weather Ball
+        
+        # Terrain Moves
+        add_effect(399, 'Electric Terrain', 100, 1)  # Electric Terrain
+        add_effect(400, 'Grassy Terrain', 100, 1)  # Grassy Terrain
+        add_effect(401, 'Misty Terrain', 100, 1)  # Misty Terrain
+        add_effect(402, 'Psychic Terrain', 100, 1)  # Psychic Terrain
+        
+        # Recovery Moves
+        add_effect(403, 'Heal 50%', 100, 1)  # Soft-Boiled
+        add_effect(404, 'Heal 50%', 100, 1)  # Moonlight
+        add_effect(405, 'Heal 50%', 100, 1)  # Morning Sun
+        add_effect(406, 'Heal 50%', 100, 1)  # Synthesis
+        add_effect(407, 'Heal 50%', 100, 1)  # Slack Off
+        add_effect(408, 'Heal 50%', 100, 1)  # Milk Drink
+        add_effect(409, 'Wish', 100, 1)  # Wish
+        add_effect(410, 'Ingrain', 100, 1)  # Ingrain
+        add_effect(411, 'Aqua Ring', 100, 1)  # Aqua Ring
+        
+        # Utility Moves
+        add_effect(412, 'Swap Items', 100, 1)  # Trick
+        add_effect(413, 'Swap Items', 100, 1)  # Switcheroo
+        add_effect(414, 'Safeguard', 100, 1)  # Safeguard
+        add_effect(415, 'Cure Status', 100, 1)  # Heal Bell
+        add_effect(416, 'Cure Status', 100, 1)  # Aromatherapy
+        add_effect(417, 'Copy Stat Stages', 100, 1)  # Psych Up
+        
+        # Phasing Moves
+        add_effect(418, 'Force Switch', 100, 1)  # Whirlwind
+        add_effect(419, 'Force Switch', 100, 2)  # Circle Throw
+        
+        # Multi-Hit Moves
+        add_effect(420, 'Multi Hit 2-5', 100, 1)  # Double Slap
+        add_effect(421, 'Multi Hit 2-5', 100, 1)  # Fury Attack
+        add_effect(422, 'Multi Hit 2-5', 100, 1)  # Pin Missile
+        add_effect(423, 'Multi Hit 2-5', 100, 1)  # Spike Cannon
+        add_effect(424, 'Multi Hit 2-5', 100, 1)  # Tail Slap
+        add_effect(425, 'Multi Hit 2-5', 100, 1)  # Bullet Seed
+        add_effect(426, 'Multi Hit 2', 100, 1)  # Double Kick
+        add_effect(427, 'Multi Hit 2', 100, 1)  # Twineedle
+        add_effect(427, 'Poison 20%', 20, 2)
+        add_effect(428, 'Protect', 100, 1)  # Protect
+
 
         # Print missing effects for debugging
         if missing_effects:

@@ -28,7 +28,7 @@ if char:
 # Test type search
 fire_types = search_pokemon_by_type('Fire')
 print(f"\n✅ Found {len(fire_types)} Fire-type Pokemon:")
-for p in fire_types[:10]:  # Show first 5
+for p in fire_types[:5]:  # Show first 5
     print(f"   - {p[1]} ({p[2]}/{p[3] if p[3] else 'None'})")
 
 # Test total count
