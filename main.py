@@ -685,6 +685,108 @@ class PokemonGame:
             if random.random() < 0.3:
                 print(f"  {defender.name} flinched!")
     
+    def teach_move_to_team(self):
+        """Allow player to teach a new move to one of their Pokemon"""
+        print("\n" + "="*70)
+        print("MOVE TUTOR")
+        print("="*70)
+        print("\nSelect a Pokemon to teach a new move:")
+        
+        # Show team
+        for i, pokemon in enumerate(self.player_team, 1):
+            print(f"{i}. {pokemon.name} (Lv.{pokemon.level})")
+        
+        print(f"{len(self.player_team) + 1}. Cancel")
+        
+        while True:
+            try:
+                choice = input(f"\nChoice (1-{len(self.player_team) + 1}): ").strip()
+                choice_idx = int(choice) - 1
+                
+                if choice_idx == len(self.player_team):
+                    print("Cancelled move learning.")
+                    return
+                
+                if 0 <= choice_idx < len(self.player_team):
+                    selected_pokemon = self.player_team[choice_idx]
+                    break
+                else:
+                    print("Invalid choice. Try again.")
+            except (ValueError, KeyboardInterrupt):
+                print("Invalid input. Try again.")
+        
+        # Get filtered moves for this Pokemon
+        print(f"\n{selected_pokemon.name}'s current moves:")
+        for i, move in enumerate(selected_pokemon.moves, 1):
+            print(f"  {i}. {move.name} ({move.type}, {move.category}) - Power: {move.power or 'N/A'}")
+        
+        # Get available moves
+        available_moves = self.generator.get_filtered_moves_for_learning(
+            selected_pokemon,
+            respect_power_cap=True
+        )
+        
+        if not available_moves:
+            print(f"\nNo new moves available for {selected_pokemon.name} at this level!")
+            return
+        
+        print(f"\nAvailable moves for {selected_pokemon.name}:")
+        print("-"*70)
+        
+        # Show up to 10 moves
+        display_moves = available_moves[:10]
+        for i, move in enumerate(display_moves, 1):
+            power_str = f"Power: {move['power']}" if move['power'] else "Status"
+            print(f"{i}. {move['name']} ({move['type']}, {move['category']}) - {power_str}")
+        
+        print(f"{len(display_moves) + 1}. Cancel")
+        
+        while True:
+            try:
+                choice = input(f"\nSelect move to learn (1-{len(display_moves) + 1}): ").strip()
+                move_idx = int(choice) - 1
+                
+                if move_idx == len(display_moves):
+                    print("Cancelled move learning.")
+                    return
+                
+                if 0 <= move_idx < len(display_moves):
+                    new_move = display_moves[move_idx]
+                    break
+                else:
+                    print("Invalid choice. Try again.")
+            except (ValueError, KeyboardInterrupt):
+                print("Invalid input. Try again.")
+        
+        # If Pokemon has 4 moves, ask which to replace
+        if len(selected_pokemon.moves) >= 4:
+            print(f"\n{selected_pokemon.name} already knows 4 moves. Which move should be forgotten?")
+            for i, move in enumerate(selected_pokemon.moves, 1):
+                print(f"{i}. {move.name}")
+            print(f"{len(selected_pokemon.moves) + 1}. Cancel")
+            
+            while True:
+                try:
+                    choice = input(f"\nReplace which move? (1-{len(selected_pokemon.moves) + 1}): ").strip()
+                    replace_idx = int(choice) - 1
+                    
+                    if replace_idx == len(selected_pokemon.moves):
+                        print(f"{selected_pokemon.name} did not learn {new_move['name']}.")
+                        return
+                    
+                    if 0 <= replace_idx < len(selected_pokemon.moves):
+                        break
+                    else:
+                        print("Invalid choice. Try again.")
+                except (ValueError, KeyboardInterrupt):
+                    print("Invalid input. Try again.")
+        else:
+            replace_idx = len(selected_pokemon.moves)  # Add to end
+        
+        # Teach the move
+        self.generator.teach_move_to_pokemon(selected_pokemon, new_move, replace_idx)
+        print(f"\n{selected_pokemon.name} learned {new_move['name']}!")
+    
     def offer_rewards(self, defeated_opponents):
         """Offer rewards after winning a battle"""
         print("\n" + "="*70)
@@ -778,7 +880,11 @@ class PokemonGame:
             tsb = self.generator.calculate_tsb(self.generator._pokemon_to_data(new_poke))
             print(f"1. Add {new_poke.name} to your team (Lv.{new_poke.level}, TSB: {tsb})")
         
-        # Option 2: Continue
+        # Option 2: Teach a move
+        reward_options.append('learn_move')
+        print(f"{len(reward_options)}. Teach a new move to one of your Pokemon")
+        
+        # Option 3: Continue
         reward_options.append('continue')
         print(f"{len(reward_options)}. Continue to next round")
         
@@ -797,6 +903,9 @@ class PokemonGame:
                     if selected == 'new_pokemon':
                         self.player_team.append(rewards['new_pokemon'])
                         print(f"\n{rewards['new_pokemon'].name} joined your team!")
+                        return True
+                    elif selected == 'learn_move':
+                        self.teach_move_to_team()
                         return True
                     elif selected == 'continue':
                         print("\nOnward to the next challenge!")

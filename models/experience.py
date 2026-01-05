@@ -132,9 +132,9 @@ class ExperienceCurve:
         # Basic formula: (base * level) / 7
         exp_gain = (base_exp * defeated_level) // 7
         
-        # Trainer bonus (1.5x for trainer battles)
+        # Trainer bonus (3x for trainer battles in roguelike mode)
         if is_trainer and not is_wild:
-            exp_gain = int(exp_gain * 1.5)
+            exp_gain = int(exp_gain * 3.0)
         
         # Participation modifier
         if not participated and holding_exp_share:

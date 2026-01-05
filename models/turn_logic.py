@@ -745,6 +745,14 @@ class TurnManager:
         
         # Critical hit check
         crit_stage = 0  # Can be modified by items/abilities
+        
+        # Check for High Crit Ratio effect
+        if hasattr(move, 'effects'):
+            for effect in move.effects:
+                if effect.get('field_condition') == 'HighCritRatio':
+                    crit_stage = 1  # Higher crit ratio
+                    break
+        
         crit_chance = [1/24, 1/8, 1/2, 1/1][min(crit_stage, 3)]
         critical_hit = random.random() < crit_chance
         
@@ -945,7 +953,13 @@ class TurnManager:
             pokemon.modify_stat_stage(stat_key, stat_change_amount)
             
             # Generate appropriate message
-            stat_display = stat_to_change.replace('Sp', 'Special ')
+            if stat_to_change == 'SpAttack':
+                stat_display = 'Special Attack'
+            elif stat_to_change == 'SpDefense':
+                stat_display = 'Special Defense'
+            else:
+                stat_display = stat_to_change
+            
             if abs(stat_change_amount) >= 2:
                 change_word = 'sharply rose' if stat_change_amount > 0 else 'harshly fell'
             else:
@@ -1036,6 +1050,21 @@ class TurnManager:
         field_condition = effect.get('field_condition')
         
         if field_condition:
+            # Handle Break Screens (removes protective screens)
+            if field_condition == 'BreakScreens':
+                if 'field_effects' not in self.battle_state:
+                    self.battle_state['field_effects'] = {}
+                    
+                removed_any = False
+                screens_to_remove = ['lightscreen', 'reflect', 'auroraveil']
+                for screen in screens_to_remove:
+                    if screen in self.battle_state['field_effects']:
+                        del self.battle_state['field_effects'][screen]
+                        removed_any = True
+                if removed_any:
+                    self._log("The protective screens were shattered!")
+                return
+            
             # Store in field_effects
             if 'field_effects' not in self.battle_state:
                 self.battle_state['field_effects'] = {}
@@ -1050,6 +1079,15 @@ class TurnManager:
     def _apply_other_effect(self, user, target, effect):
         """Apply special effects from database"""
         effect_name = effect.get('effect_name', '')
+        field_condition = effect.get('field_condition', '')
+        
+        # OHKO moves
+        if field_condition == 'OHKO' or 'OHKO' in effect_name:
+            # One-Hit KO - reduce target to 0 HP
+            damage = target.current_hp
+            target.take_damage(damage)
+            self._log(f"It's a one-hit KO!")
+            return
         
         # Protection effects
         if 'Protect' in effect_name:
