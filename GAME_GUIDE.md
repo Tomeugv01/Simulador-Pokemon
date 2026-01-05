@@ -260,20 +260,6 @@ Type Effectiveness: 2x, 1x, 0.5x, or 0x
 - Fainted Pokemon can't be used again this battle
 - Battle ends when all Pokemon on one side have fainted
 
-## Demo Mode
-
-Want to see the systems in action without playing?
-```bash
-python demo_game.py
-```
-
-This runs an automated demonstration showing:
-- Starter selection
-- Opponent generation
-- CPU AI decision-making
-- Difficulty scaling
-- Reward system
-- Team compositions
 
 ## Files Reference
 
