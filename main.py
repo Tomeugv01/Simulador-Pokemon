@@ -255,6 +255,27 @@ class PokemonGame:
             player_active = battle_state['player1_active']
             opponent_active = battle_state['player2_active']
             
+            # Handle forced switches (Flip Turn, U-turn, Volt Switch, etc.)
+            forced_switches = turn_result.get('forced_switches', [])
+            for pokemon in forced_switches:
+                if pokemon in battle_state['player1_team']:
+                    # Player's Pokemon must switch out
+                    alive_pokemon = [p for p in battle_state['player1_team'] if p.current_hp > 0 and p != player_active]
+                    if alive_pokemon:
+                        print(f"\n{player_active.name} must switch out!")
+                        new_active = self.force_switch(exclude=[player_active])
+                        battle_state['player1_active'] = new_active
+                        player_active = new_active
+                        print(f"Go, {player_active.name}!")
+                elif pokemon in battle_state['player2_team']:
+                    # Opponent's Pokemon must switch out
+                    alive_pokemon = [p for p in battle_state['player2_team'] if p.current_hp > 0 and p != opponent_active]
+                    if alive_pokemon:
+                        print(f"\nOpponent's {opponent_active.name} went back!")
+                        opponent_active = random.choice(alive_pokemon)
+                        battle_state['player2_active'] = opponent_active
+                        print(f"Opponent sends out {opponent_active.name}!")
+            
             # Check for fainted Pokemon
             if opponent_active.current_hp <= 0:
                 print(f"\nOpponent's {opponent_active.name} fainted!")
@@ -372,10 +393,15 @@ class PokemonGame:
             except (ValueError, KeyboardInterrupt):
                 print("Invalid input. Try again.")
     
-    def force_switch(self):
-        """Force player to switch after a faint"""
-        # Get only alive Pokemon
-        alive_pokemon = [p for p in self.player_team if p.current_hp > 0]
+    def force_switch(self, exclude=None):
+        """Force player to switch after a faint or forced switch move
+        
+        Args:
+            exclude: List of Pokemon that cannot be switched to (e.g., the one switching out)
+        """
+        exclude = exclude or []
+        # Get only alive Pokemon that aren't excluded
+        alive_pokemon = [p for p in self.player_team if p.current_hp > 0 and p not in exclude]
         
         if len(alive_pokemon) == 1:
             # Move the only alive Pokemon to front
@@ -389,8 +415,10 @@ class PokemonGame:
         print("-"*70)
         
         for i, pokemon in enumerate(self.player_team, 1):
-            if pokemon.current_hp > 0:
+            if pokemon.current_hp > 0 and pokemon not in exclude:
                 print(f"{i}. {pokemon.name} - HP: {pokemon.current_hp}/{pokemon.max_hp}")
+            elif pokemon in exclude:
+                print(f"{i}. {pokemon.name} - (Can't switch to this Pokemon)")
             else:
                 print(f"{i}. {pokemon.name} - FAINTED")
         
@@ -401,6 +429,10 @@ class PokemonGame:
                 
                 if 0 <= pokemon_idx < len(self.player_team):
                     chosen = self.player_team[pokemon_idx]
+                    
+                    if chosen in exclude:
+                        print("You can't switch to that Pokemon right now!")
+                        continue
                     
                     # Check if chosen Pokemon is alive
                     if chosen.current_hp <= 0:

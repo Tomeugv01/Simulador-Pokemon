@@ -90,6 +90,7 @@ class TurnManager:
         self.turn_log = []
         self.fainted_pokemon = []
         self.move_repo = MoveRepository() if MoveRepository else None
+        self.forced_switches = []  # Track Pokemon that must switch out
         
     def execute_turn(self, actions: List[BattleAction]) -> Dict[str, Any]:
         """
@@ -104,6 +105,7 @@ class TurnManager:
         # IMPORTANT: Clear previous turn's log
         self.turn_log = []
         self.fainted_pokemon = []
+        self.forced_switches = []  # Clear forced switches from previous turn
         
         # Phase 1: Pre-turn effects
         self._phase_pre_turn()
@@ -125,6 +127,7 @@ class TurnManager:
             'battle_state': self.battle_state,
             'turn_log': self.turn_log,
             'fainted_pokemon': self.fainted_pokemon,
+            'forced_switches': self.forced_switches,  # Return forced switches to main loop
             'winner': winner,
             'battle_ended': winner is not None
         }
@@ -521,27 +524,62 @@ class TurnManager:
         critical_hit = False
         
         if move.get('causes_damage', False):
-            damage, critical_hit = self._calculate_damage(user, target, move)
+            # Check if this is a multi-hit move
+            num_hits = self._determine_num_hits(move)
             
-            if critical_hit:
-                self._log("A critical hit!")
-            
-            # Type effectiveness messages
-            effectiveness = self._get_type_effectiveness(move.get('type'), target)
-            if effectiveness > 1.0:
-                self._log("It's super effective!")
-            elif effectiveness < 1.0 and effectiveness > 0:
-                self._log("It's not very effective...")
-            elif effectiveness == 0:
-                self._log("It doesn't affect {target.name}...")
-                return
-            
-            # Apply damage
-            target.take_damage(damage)
-            self._log(f"{target.name} took {damage} damage!")
+            if num_hits > 1:
+                # Multi-hit move - show each hit
+                total_damage = 0
+                for hit_num in range(num_hits):
+                    hit_damage, hit_crit = self._calculate_damage(user, target, move)
+                    
+                    if hit_crit:
+                        self._log(f"Hit {hit_num + 1}! A critical hit!")
+                    else:
+                        self._log(f"Hit {hit_num + 1}!")
+                    
+                    target.take_damage(hit_damage)
+                    total_damage += hit_damage
+                
+                self._log(f"Hit {num_hits} time(s) for {total_damage} total damage!")
+                damage = total_damage
+                
+                # Type effectiveness message after all hits
+                effectiveness = self._get_type_effectiveness(move.get('type'), target)
+                if effectiveness > 1.0:
+                    self._log("It's super effective!")
+                elif effectiveness < 1.0 and effectiveness > 0:
+                    self._log("It's not very effective...")
+            else:
+                # Single-hit move
+                damage, critical_hit = self._calculate_damage(user, target, move)
+                
+                if critical_hit:
+                    self._log("A critical hit!")
+                
+                # Type effectiveness messages
+                effectiveness = self._get_type_effectiveness(move.get('type'), target)
+                if effectiveness > 1.0:
+                    self._log("It's super effective!")
+                elif effectiveness < 1.0 and effectiveness > 0:
+                    self._log("It's not very effective...")
+                elif effectiveness == 0:
+                    self._log("It doesn't affect {target.name}...")
+                    return
+                
+                # Apply damage
+                target.take_damage(damage)
+                self._log(f"{target.name} took {damage} damage!")
         
         # Apply move effects (including drain)
         self._apply_move_effects(user, target, move, damage, critical_hit)
+        
+        # Check for forced switch moves (U-turn, Volt Switch, Flip Turn, etc.)
+        if damage > 0 and self._is_forced_switch_move(move):
+            # Only switch if the target didn't faint and user is still alive
+            if target.current_hp > 0 and user.current_hp > 0:
+                self.forced_switches.append(user)
+                self._log(f"{user.name} went back to its trainer!")
         
         # Recoil damage
         if move.get('recoil_percentage', 0) > 0:
@@ -588,6 +626,60 @@ class TurnManager:
         
         return True
     
+    def _determine_num_hits(self, move) -> int:
+        """Determine how many times a multi-hit move hits"""
+        move_name = move.get('name', '')
+        
+        # Define multi-hit moves and their hit ranges
+        # 2-5 hits (most common multi-hit moves)
+        two_to_five_hits = [
+            'Fury Attack', 'Fury Swipes', 'Double Slap', 'Comet Punch',
+            'Pin Missile', 'Spike Cannon', 'Barrage', 'Bone Rush',
+            'Icicle Spear', 'Rock Blast', 'Tail Slap', 'Bullet Seed',
+            'Water Shuriken', 'Scale Shot'
+        ]
+        
+        # Fixed 2 hits
+        two_hits = ['Double Kick', 'Bonemerang', 'Double Iron Bash', 'Gear Grind', 'Twineedle']
+        
+        # Fixed 3 hits
+        three_hits = ['Triple Kick', 'Triple Axel', 'Water Shuriken']  # Water Shuriken varies
+        
+        # Fixed 5 hits
+        five_hits = ['Beat Up']  # Actually depends on team size, but simplified
+        
+        # Check which category this move belongs to
+        if move_name in two_hits:
+            return 2
+        elif move_name in three_hits:
+            return 3
+        elif move_name in five_hits:
+            return 5
+        elif move_name in two_to_five_hits:
+            # 2-5 hits with specific probability distribution
+            # 35% for 2 hits, 35% for 3 hits, 15% for 4 hits, 15% for 5 hits
+            roll = random.random()
+            if roll < 0.35:
+                return 2
+            elif roll < 0.70:
+                return 3
+            elif roll < 0.85:
+                return 4
+            else:
+                return 5
+        
+        # Default: single hit
+        return 1
+    
+    def _is_forced_switch_move(self, move) -> bool:
+        """Check if a move forces the user to switch out after hitting"""
+        move_name = move.get('name', '')
+        forced_switch_moves = [
+            'U-turn', 'Volt Switch', 'Flip Turn', 'Baton Pass',
+            'Parting Shot', 'Teleport'  # Gen 8+
+        ]
+        return move_name in forced_switch_moves
+    
     def _is_protected(self, target, move) -> bool:
         """Check if target is protected from this move"""
         if not hasattr(target, 'protected') or not target.protected:
@@ -633,7 +725,9 @@ class TurnManager:
         """
         # Get move power
         power = move.get('power', 0)
-        if power == 0:
+        
+        # Handle None or 0 power (status moves, some special moves)
+        if power is None or power == 0:
             return 0, False
         
         # Determine if physical or special
@@ -744,18 +838,38 @@ class TurnManager:
             self._apply_single_effect(user, target, effect, damage, critical_hit)
     
     def _get_move_effects(self, move):
-        """Query move effects from database"""
+        """Query move effects from database or Move object"""
+        # First, check if move has effects already loaded (Move object)
+        if hasattr(move, 'effects'):
+            effects = move.effects
+            if effects:
+                return effects
+            else:
+                self._log(f"(Debug: Move object '{getattr(move, 'name', 'unknown')}' has no effects)")
+                return []
+        
+        # Fallback: try to get from dict
+        if isinstance(move, dict) and 'effects' in move:
+            return move.get('effects', [])
+        
+        # Last resort: query database
         if not self.move_repo:
+            self._log("(Debug: No move repository available)")
             return []
         
         move_id = move.get('id')
         if not move_id:
+            self._log(f"(Debug: Move has no ID: {move.get('name')}")
             return []
         
         try:
             move_with_effects = self.move_repo.get_with_effects(move_id)
-            return move_with_effects.get('effects', [])
-        except Exception:
+            effects = move_with_effects.get('effects', [])
+            if not effects:
+                self._log(f"(Debug: Move ID {move_id} '{move.get('name')}' has no effects in database)")
+            return effects
+        except Exception as e:
+            self._log(f"(Debug: Error retrieving effects: {e})")
             return []
     
     def _handle_status_move(self, user, target, move):
@@ -765,7 +879,9 @@ class TurnManager:
         
         if not effects:
             # Fallback: if no database effects, just log
-            self._log(f"{user.name} used {move.get('name', 'a move')}!")
+            move_name = move.get('name', 'a move')
+            self._log(f"{user.name} used {move_name}!")
+            self._log(f"(Debug: No effects found for move ID {move.get('id')})")
             return
         
         # Apply each effect
@@ -778,12 +894,17 @@ class TurnManager:
         effect_target_str = effect.get('effect_target', 'Target')
         probability = effect.get('probability', 100)
         
+        self._log(f"(Debug: Processing effect - type: {effect_type}, target: {effect_target_str}, probability: {probability}%)")
+        
         # Probability check
         if random.randint(1, 100) > probability:
+            self._log(f"(Debug: Effect failed probability check)")
             return
         
         # Determine who receives the effect
         effect_target = target if effect_target_str == 'Target' else user
+        
+        self._log(f"(Debug: Applying {effect_type} to {effect_target.name})")
         
         # Apply based on effect type
         if effect_type == 'STAT_CHANGE':
@@ -835,12 +956,16 @@ class TurnManager:
         """Apply status condition from database effect"""
         status_condition = effect.get('status_condition', 'None')
         
+        self._log(f"(Debug: Applying status effect - condition: {status_condition}, target: {pokemon.name})")
+        
         if status_condition == 'None' or not status_condition:
+            self._log(f"(Debug: Status condition is None or empty)")
             return
         
         # Check if Pokemon can be statused
         if pokemon.status and pokemon.status != '':
             self._log(f"But it failed!")
+            self._log(f"(Debug: {pokemon.name} already has status: {pokemon.status})")
             return
         
         # Map database status names to Pokemon status names
@@ -853,6 +978,8 @@ class TurnManager:
             'Confusion': 'confusion'
         }
         status_name = status_map.get(status_condition, status_condition.lower())
+        
+        self._log(f"(Debug: Mapped '{status_condition}' to '{status_name}')")
         
         pokemon.apply_status(status_name)
         

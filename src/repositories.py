@@ -287,15 +287,20 @@ class MoveRepository:
         if not move:
             return None
         
-        # Get effects for this move
+        # Get effects for this move with all necessary fields
         conn = self.get_connection()
         cursor = conn.cursor()
         
         cursor.execute('''
-            SELECT me.id, me.name, me.description, mei.probability
+            SELECT me.id, me.name, me.description, me.effect_type, me.effect_target,
+                   me.status_condition, me.stat_to_change, me.stat_change_amount,
+                   me.heal_percentage, me.heal_fixed_amount, me.recoil_percentage,
+                   me.weather_type, me.field_condition, 
+                   mei.probability, mei.effect_order, mei.triggers_on
             FROM move_effect_instances mei
             JOIN move_effects me ON mei.effect_id = me.id
             WHERE mei.move_id = ?
+            ORDER BY mei.effect_order
         ''', (move_id,))
         
         effects = []
@@ -304,7 +309,19 @@ class MoveRepository:
                 'effect_id': row[0],
                 'effect_name': row[1],
                 'description': row[2],
-                'probability': row[3]
+                'effect_type': row[3],
+                'effect_target': row[4],
+                'status_condition': row[5],
+                'stat_to_change': row[6],
+                'stat_change_amount': row[7],
+                'heal_percentage': row[8],
+                'heal_fixed_amount': row[9],
+                'recoil_percentage': row[10],
+                'weather_type': row[11],
+                'field_condition': row[12],
+                'probability': row[13],
+                'effect_order': row[14],
+                'triggers_on': row[15]
             })
         
         conn.close()
