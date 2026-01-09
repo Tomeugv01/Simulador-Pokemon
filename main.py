@@ -327,10 +327,16 @@ class PokemonGame:
                 
                 if choice == '1':
                     # Choose move
-                    return self.choose_move(player_pokemon)
+                    move = self.choose_move(player_pokemon)
+                    if move is not None:
+                        return move
+                    # If move is None (pressed 'b'), loop back to main menu
                 elif choice == '2':
                     # Switch Pokemon
-                    return self.choose_switch()
+                    switch_result = self.choose_switch()
+                    if switch_result is not None:
+                        return switch_result
+                    # If switch_result is None (pressed 'b'), loop back to main menu
                 elif choice == '3':
                     return None
                 else:

@@ -237,6 +237,8 @@ class DatabaseManager:
             ('Always Crit', 'Always results in a critical hit', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'Target'),
             ('Priority +1', 'Increased priority', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'User'),
             ('Protect', 'Protects user from attacks', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'User'),
+            ('OHKO', 'One-hit KO if it hits', 'OTHER', 'None', None, 0, 0, 0, 0, None, 'OHKO', 'Target'),
+            ('Variable Power', 'Power varies based on conditions', 'OTHER', 'None', None, 0, 0, 0, 0, None, 'VariablePower', 'Target'),
             ('Multi Hit 2', 'Hits 2 times', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'Target'),
             ('Multi Hit 3', 'Hits 3 times', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'Target'),
             ('Multi Hit 2-5', 'Hits 2-5 times', 'OTHER', 'None', None, 0, 0, 0, 0, None, None, 'Target'),
