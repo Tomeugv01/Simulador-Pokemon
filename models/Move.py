@@ -144,13 +144,27 @@ class Move:
     def is_status(self):
         """Check if move is status category"""
         return self.category == 'Status'
+
+    def copy(self):
+        """Create a copy of this move instance"""
+        import copy
+        # Create a shallow copy
+        new_move = copy.copy(self)
+        # Ensure effects list is also copied (list of dicts)
+        if hasattr(self, 'effects'):
+            new_move.effects = [e.copy() for e in self.effects]
+        return new_move
     
     def __getitem__(self, key):
         """Allow dictionary-style access for compatibility"""
+        if key == 'pp':
+            return self.pp_max
         return getattr(self, key, None)
     
     def get(self, key, default=None):
         """Allow dict.get() style access for compatibility"""
+        if key == 'pp':
+            return self.pp_max
         return getattr(self, key, default)
     
     def __repr__(self):

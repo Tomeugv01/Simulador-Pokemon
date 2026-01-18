@@ -538,7 +538,16 @@ class TurnManager:
                     else:
                         self._log(f"Hit {hit_num + 1}!")
                     
-                    target.take_damage(hit_damage)
+                    # Check for substitute on each hit
+                    if hasattr(target, 'substitute') and target.substitute and not move.get('bypasses_substitute', False):
+                        result = target.damage_substitute(hit_damage)
+                        if result['broke']:
+                            self._log(f"The substitute broke!")
+                            # Depending on gen, overflow damage might not transfer, or subsequent hits go to Pokemon
+                            # We'll assume subsequent hits go to Pokemon if sub breaks midway
+                    else:
+                        target.take_damage(hit_damage)
+                    
                     total_damage += hit_damage
                 
                 self._log(f"Hit {num_hits} time(s) for {total_damage} total damage!")
@@ -567,9 +576,16 @@ class TurnManager:
                     self._log("It doesn't affect {target.name}...")
                     return
                 
-                # Apply damage
-                target.take_damage(damage)
-                self._log(f"{target.name} took {damage} damage!")
+                # Check for Substitute
+                if hasattr(target, 'substitute') and target.substitute and not move.get('bypasses_substitute', False):
+                    self._log(f"The substitute took damage for {target.name}!")
+                    result = target.damage_substitute(damage)
+                    if result['broke']:
+                        self._log(f"The substitute broke!")
+                else:
+                    # Apply damage
+                    target.take_damage(damage)
+                    self._log(f"{target.name} took {damage} damage!")
         
         # Apply move effects (including drain)
         self._apply_move_effects(user, target, move, damage, critical_hit)
@@ -934,6 +950,20 @@ class TurnManager:
         
         # Determine who receives the effect
         effect_target = target if effect_target_str == 'Target' else user
+        
+        # Check if Substitute blocks the effect
+        # Substitute blocks offensive effects on the target
+        if effect_target_str == 'Target' and hasattr(effect_target, 'substitute') and effect_target.substitute:
+            blocked_types = ['STATUS', 'STAT_CHANGE', 'OTHER']
+            # Note: sound-based moves or Infiltrator would bypass this in full mechanics
+            
+            if effect_type in blocked_types:
+                # Exceptions within OTHER?
+                # Transform is OTHER, but works on Substitute in some gens? No, usually fails.
+                # Only "Special" effects that target the user should pass, but we're in effect_target_str == 'Target' block.
+                
+                self._log(f"But it failed! (Substitute protected {effect_target.name})")
+                return
         
         self._log(f"(Debug: Applying {effect_type} to {effect_target.name})")
         

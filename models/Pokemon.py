@@ -24,7 +24,10 @@ except ImportError:
         from repositories import PokemonRepository, MoveRepository
         from database import get_moves_at_level
 
-from Move import Move
+try:
+    from Move import Move
+except ImportError:
+    from models.Move import Move
 
 try:
     from experience import ExperienceCurve
@@ -221,6 +224,10 @@ class Pokemon:
         self.cursed = False  # Ghost-type Curse
         self.ingrain = False  # Can't switch, heals each turn
         self.aqua_ring = False  # Heals each turn
+        
+        # Transformation
+        self.transformed = False
+        self.original_stats = None  # To store original stats, moves, types
         
         # Other conditions
         self.embargo = False  # Can't use items
@@ -530,8 +537,87 @@ class Pokemon:
         
         return True, None
     
+    def transform(self, target):
+        """
+        Transform into the target Pokemon.
+        Copies stats (except HP), moves, types, and stat stages.
+        """
+        if self.transformed:
+            return False  # Already transformed
+            
+        # 1. Backup original state
+        self.original_stats = {
+            'attack': self.attack,
+            'defense': self.defense,
+            'sp_attack': self.sp_attack,
+            'sp_defense': self.sp_defense,
+            'speed': self.speed,
+            'type1': self.type1,
+            'type2': self.type2,
+            'moves': [m.copy() for m in self.moves], # Deep copy of moves
+        }
+        
+        # 2. Copy Target Stats (HP remains original)
+        self.attack = target.attack
+        self.defense = target.defense
+        self.sp_attack = target.sp_attack
+        self.sp_defense = target.sp_defense
+        self.speed = target.speed
+        
+        # 3. Copy Target Types
+        self.type1 = target.type1
+        self.type2 = target.type2
+        
+        # 4. Copy Target Moves with 5 PP
+        self.moves = []
+        for move in target.moves:
+            new_move = move.copy()
+            
+            # Handle Move object fields
+            if hasattr(new_move, 'pp_current'):
+                new_move.pp_current = 5
+                new_move.pp_max = 5
+            # Handle dict fields (fallback)
+            elif isinstance(new_move, dict):
+                new_move['pp'] = 5
+                new_move['max_pp'] = 5
+                
+            self.moves.append(new_move)
+            
+        # 5. Copy Stat Stages
+        self.stat_stages = target.stat_stages.copy()
+        
+        # 6. Set Flag
+        self.transformed = True
+        return True
+    
+    def reset_transform(self):
+        """Revert transformation"""
+        if not self.transformed or not self.original_stats:
+            return
+            
+        # Restore stats
+        self.attack = self.original_stats['attack']
+        self.defense = self.original_stats['defense']
+        self.sp_attack = self.original_stats['sp_attack']
+        self.sp_defense = self.original_stats['sp_defense']
+        self.speed = self.original_stats['speed']
+        
+        # Restore types
+        self.type1 = self.original_stats['type1']
+        self.type2 = self.original_stats['type2']
+        
+        # Restore moves
+        self.moves = self.original_stats['moves']
+        
+        self.transformed = False
+        self.original_stats = None
+
     def reset_volatile_conditions(self):
         """Reset all volatile battle conditions (when switching out)"""
+        # Reset transformation first
+        self.reset_transform()
+        
         self.confused = False
         self.confusion_turns = 0
         self.flinched = False

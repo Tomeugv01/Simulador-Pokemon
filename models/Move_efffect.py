@@ -642,6 +642,21 @@ class SpecialEffect(MoveEffect):
                 'effect': 'prevent_switch',
                 'message': f"{target.name} can no longer escape!"
             }
+            
+        # Transform
+        if 'Transform' in effect_name:
+            success = user.transform(target)
+            if success:
+                return {
+                    'success': True,
+                    'effect': 'transform',
+                    'message': f"{user.name} transformed into {target.name}!"
+                }
+            return {
+                'success': False,
+                'effect': 'transform',
+                'message': f"{user.name} is already transformed!"
+            }
         
         # Default for unhandled special effects
         return {
