@@ -1,0 +1,1849 @@
+================================================================================
+                    DETAILED TEST RESULTS REPORT
+================================================================================
+
+Total Tests: 608
+Passed: 579
+Failed: 29
+Errors: 0
+Warnings: 0
+
+================================================================================
+PASSED TESTS
+================================================================================
+
+[PASS] Accelerock (Damaging)
+   Details: Dealt 39 damage
+
+[PASS] Acrobatics (Damaging)
+   Details: Dealt 56 damage
+
+[PASS] Aerial Ace (Damaging)
+   Details: Dealt 63 damage
+
+[PASS] Anchor Shot (Damaging)
+   Details: Dealt 86 damage
+
+[PASS] Aqua Jet (Damaging)
+   Details: Dealt 43 damage
+
+[PASS] Aqua Tail (Damaging)
+   Details: Dealt 95 damage
+
+[PASS] Arm Thrust (Damaging)
+   Details: Dealt 16 damage
+
+[PASS] Assurance (Damaging)
+   Details: Dealt 63 damage
+
+[PASS] Astonish (Damaging)
+   Details: Dealt 31 damage
+
+[PASS] Attack Order (Damaging)
+   Details: Dealt 83 damage
+
+[PASS] Avalanche (Damaging)
+   Details: Dealt 88 damage
+
+[PASS] Barrage (Damaging)
+   Details: Dealt 47 damage
+
+[PASS] Beak Blast (Damaging)
+   Details: Dealt 99 damage
+
+[PASS] Bind (Damaging)
+   Details: Dealt 16 damage
+
+[PASS] Bite (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Blaze Kick (Damaging)
+   Details: Dealt 83 damage
+
+[PASS] Body Slam (Damaging)
+   Details: Dealt 90 damage
+
+[PASS] Bolt Strike (Damaging)
+   Details: Dealt 95 damage
+
+[PASS] Bone Club (Damaging)
+   Details: Dealt 65 damage
+
+[PASS] Bone Rush (Damaging)
+   Details: Dealt 78 damage
+
+[PASS] Bonemerang (Damaging)
+   Details: Dealt 107 damage
+
+[PASS] Bounce (Damaging)
+   Details: Dealt 87 damage
+
+[PASS] Brave Bird (Damaging)
+   Details: Dealt 119 damage
+
+[PASS] Brick Break (Damaging)
+   Details: Dealt 78 damage
+
+[PASS] Brutal Swing (Damaging)
+   Details: Dealt 57 damage
+
+[PASS] Bug Bite (Damaging)
+   Details: Dealt 64 damage
+
+[PASS] Bulldoze (Damaging)
+   Details: Dealt 56 damage
+
+[PASS] Bullet Punch (Damaging)
+   Details: Dealt 44 damage
+
+[PASS] Bullet Seed (Damaging)
+   Details: Dealt 53 damage
+
+[PASS] Catastropika (Damaging)
+   Details: Dealt 146 damage
+
+[PASS] Chip Away (Damaging)
+   Details: Dealt 66 damage
+
+[PASS] Circle Throw (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Clamp (Damaging)
+   Details: Dealt 35 damage
+
+[PASS] Close Combat (Damaging)
+   Details: Dealt 113 damage
+
+[PASS] Comet Punch (Damaging)
+   Details: Dealt 40 damage
+
+[PASS] Constrict (Damaging)
+   Details: Dealt 10 damage
+
+[PASS] Covet (Damaging)
+   Details: Dealt 55 damage
+
+[PASS] Crabhammer (Damaging)
+   Details: Dealt 92 damage
+
+[PASS] Cross Chop (Damaging)
+   Details: Dealt 99 damage
+
+[PASS] Cross Poison (Damaging)
+   Details: Dealt 65 damage
+
+[PASS] Crunch (Damaging)
+   Details: Dealt 83 damage
+
+[PASS] Crush Claw (Damaging)
+   Details: Dealt 77 damage
+
+[PASS] Cut (Damaging)
+   Details: Dealt 54 damage
+
+[PASS] Darkest Lariat (Damaging)
+   Details: Dealt 80 damage
+
+[PASS] Diamond Storm (Damaging)
+   Details: Dealt 94 damage
+
+[PASS] Dig (Damaging)
+   Details: Dealt 81 damage
+
+[PASS] Dive (Damaging)
+   Details: Dealt 83 damage
+
+[PASS] Dizzy Punch (Damaging)
+   Details: Dealt 66 damage
+
+[PASS] Double Hit (Damaging)
+   Details: Dealt 33 damage
+
+[PASS] Double Iron Bash (Damaging)
+   Details: Dealt 115 damage
+
+[PASS] Double Kick (Damaging)
+   Details: Dealt 63 damage
+
+[PASS] Double Slap (Damaging)
+   Details: Dealt 31 damage
+
+[PASS] Double-Edge (Damaging)
+   Details: Dealt 127 damage
+
+[PASS] Dragon Ascent (Damaging)
+   Details: Dealt 117 damage
+
+[PASS] Dragon Claw (Damaging)
+   Details: Dealt 81 damage
+
+[PASS] Dragon Hammer (Damaging)
+   Details: Dealt 123 damage
+
+[PASS] Dragon Rush (Damaging)
+   Details: Dealt 104 damage
+
+[PASS] Dragon Tail (Damaging)
+   Details: Dealt 63 damage
+
+[PASS] Drain Punch (Damaging)
+   Details: Dealt 75 damage
+
+[PASS] Drill Peck (Damaging)
+   Details: Dealt 79 damage
+
+[PASS] Drill Run (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Dual Chop (Damaging)
+   Details: Dealt 42 damage
+
+[PASS] Dynamic Punch (Damaging)
+   Details: Dealt 98 damage
+
+[PASS] Earthquake (Damaging)
+   Details: Dealt 99 damage
+
+[PASS] Egg Bomb (Damaging)
+   Details: Dealt 93 damage
+
+[PASS] Explosion (Damaging)
+   Details: Dealt 211 damage
+
+[PASS] Extreme Speed (Damaging)
+   Details: Dealt 86 damage
+
+[PASS] Facade (Damaging)
+   Details: Dealt 73 damage
+
+[PASS] Fake Out (Damaging)
+   Details: Dealt 42 damage
+
+[PASS] False Swipe (Damaging)
+   Details: Dealt 39 damage
+
+[PASS] Feint (Damaging)
+   Details: Dealt 47 damage
+
+[PASS] Feint Attack (Damaging)
+   Details: Dealt 62 damage
+
+[PASS] Fell Stinger (Damaging)
+   Details: Dealt 52 damage
+
+[PASS] Fire Fang (Damaging)
+   Details: Dealt 80 damage
+
+[PASS] Fire Lash (Damaging)
+   Details: Dealt 79 damage
+
+[PASS] Fire Punch (Damaging)
+   Details: Dealt 71 damage
+
+[PASS] First Impression (Damaging)
+   Details: Dealt 93 damage
+
+[PASS] Flame Charge (Damaging)
+   Details: Dealt 49 damage
+
+[PASS] Flame Wheel (Damaging)
+   Details: Dealt 62 damage
+
+[PASS] Flare Blitz (Damaging)
+   Details: Dealt 115 damage
+
+[PASS] Floaty Fall (Damaging)
+   Details: Dealt 84 damage
+
+[PASS] Fly (Damaging)
+   Details: Dealt 96 damage
+
+[PASS] Flying Press (Damaging)
+   Details: Dealt 98 damage
+
+[PASS] Focus Punch (Damaging)
+   Details: Dealt 155 damage
+
+[PASS] Force Palm (Damaging)
+   Details: Dealt 56 damage
+
+[PASS] Foul Play (Damaging)
+   Details: Dealt 91 damage
+
+[PASS] Freeze Shock (Damaging)
+   Details: Dealt 136 damage
+
+[PASS] Fury Attack (Damaging)
+   Details: Dealt 63 damage
+
+[PASS] Fury Cutter (Damaging)
+   Details: Dealt 41 damage
+
+[PASS] Fury Swipes (Damaging)
+   Details: Dealt 88 damage
+
+[PASS] Fusion Bolt (Damaging)
+   Details: Dealt 78 damage
+
+[PASS] Gear Grind (Damaging)
+   Details: Dealt 97 damage
+
+[PASS] Giga Impact (Damaging)
+   Details: Dealt 142 damage
+
+[PASS] Gunk Shot (Damaging)
+   Details: Dealt 183 damage
+
+[PASS] Hammer Arm (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Head Charge (Damaging)
+   Details: Dealt 110 damage
+
+[PASS] Head Smash (Damaging)
+   Details: Dealt 154 damage
+
+[PASS] Headbutt (Damaging)
+   Details: Dealt 69 damage
+
+[PASS] Heart Stamp (Damaging)
+   Details: Dealt 56 damage
+
+[PASS] High Horsepower (Damaging)
+   Details: Dealt 96 damage
+
+[PASS] High Jump Kick (Damaging)
+   Details: Dealt 133 damage
+
+[PASS] Hold Back (Damaging)
+   Details: Dealt 39 damage
+
+[PASS] Horn Attack (Damaging)
+   Details: Dealt 67 damage
+
+[PASS] Horn Leech (Damaging)
+   Details: Dealt 77 damage
+
+[PASS] Hyper Fang (Damaging)
+   Details: Dealt 83 damage
+
+[PASS] Hyperspace Fury (Damaging)
+   Details: Dealt 104 damage
+
+[PASS] Ice Ball (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Ice Fang (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Ice Hammer (Damaging)
+   Details: Dealt 107 damage
+
+[PASS] Ice Punch (Damaging)
+   Details: Dealt 69 damage
+
+[PASS] Ice Shard (Damaging)
+   Details: Dealt 38 damage
+
+[PASS] Icicle Crash (Damaging)
+   Details: Dealt 91 damage
+
+[PASS] Icicle Spear (Damaging)
+   Details: Dealt 80 damage
+
+[PASS] Iron Head (Damaging)
+   Details: Dealt 80 damage
+
+[PASS] Iron Tail (Damaging)
+   Details: Dealt 93 damage
+
+[PASS] Jump Kick (Damaging)
+   Details: Dealt 94 damage
+
+[PASS] Karate Chop (Damaging)
+   Details: Dealt 47 damage
+
+[PASS] Knock Off (Damaging)
+   Details: Dealt 67 damage
+
+[PASS] Land's Wrath (Damaging)
+   Details: Dealt 92 damage
+
+[PASS] Last Resort (Damaging)
+   Details: Dealt 130 damage
+
+[PASS] Leaf Blade (Damaging)
+   Details: Dealt 96 damage
+
+[PASS] Leafage (Damaging)
+   Details: Dealt 40 damage
+
+[PASS] Leech Life (Damaging)
+   Details: Dealt 75 damage
+
+[PASS] Let's Snuggle Forever (Damaging)
+   Details: Dealt 196 damage
+
+[PASS] Lick (Damaging)
+   Details: Dealt 29 damage
+
+[PASS] Liquidation (Damaging)
+   Details: Dealt 80 damage
+
+[PASS] Low Sweep (Damaging)
+   Details: Dealt 70 damage
+
+[PASS] Lunge (Damaging)
+   Details: Dealt 78 damage
+
+[PASS] Mach Punch (Damaging)
+   Details: Dealt 42 damage
+
+[PASS] Magnet Bomb (Damaging)
+   Details: Dealt 56 damage
+
+[PASS] Malicious Moonsault (Damaging)
+   Details: Dealt 184 damage
+
+[PASS] Mega Kick (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Mega Punch (Damaging)
+   Details: Dealt 82 damage
+
+[PASS] Megahorn (Damaging)
+   Details: Dealt 183 damage
+
+[PASS] Metal Claw (Damaging)
+   Details: Dealt 48 damage
+
+[PASS] Meteor Mash (Damaging)
+   Details: Dealt 87 damage
+
+[PASS] Multi-Attack (Damaging)
+   Details: Dealt 115 damage
+
+[PASS] Needle Arm (Damaging)
+   Details: Dealt 58 damage
+
+[PASS] Night Slash (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Nuzzle (Damaging)
+   Details: Dealt 15 damage
+
+[PASS] Outrage (Damaging)
+   Details: Dealt 126 damage
+
+[PASS] Pay Day (Damaging)
+   Details: Dealt 41 damage
+
+[PASS] Payback (Damaging)
+   Details: Dealt 47 damage
+
+[PASS] Peck (Damaging)
+   Details: Dealt 36 damage
+
+[PASS] Petal Blizzard (Damaging)
+   Details: Dealt 89 damage
+
+[PASS] Phantom Force (Damaging)
+   Details: Dealt 86 damage
+
+[PASS] Pin Missile (Damaging)
+   Details: Dealt 54 damage
+
+[PASS] Plasma Fists (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Play Rough (Damaging)
+   Details: Dealt 91 damage
+
+[PASS] Pluck (Damaging)
+   Details: Dealt 55 damage
+
+[PASS] Poison Fang (Damaging)
+   Details: Dealt 52 damage
+
+[PASS] Poison Jab (Damaging)
+   Details: Dealt 79 damage
+
+[PASS] Poison Sting (Damaging)
+   Details: Dealt 43 damage
+
+[PASS] Poison Tail (Damaging)
+   Details: Dealt 54 damage
+
+[PASS] Pound (Damaging)
+   Details: Dealt 40 damage
+
+[PASS] Power Trip (Damaging)
+   Details: Dealt 21 damage
+
+[PASS] Power Whip (Damaging)
+   Details: Dealt 127 damage
+
+[PASS] Power-Up Punch (Damaging)
+   Details: Dealt 38 damage
+
+[PASS] Precipice Blades (Damaging)
+   Details: Dealt 125 damage
+
+[PASS] Psychic Fangs (Damaging)
+   Details: Dealt 79 damage
+
+[PASS] Psycho Cut (Damaging)
+   Details: Dealt 66 damage
+
+[PASS] Pulverizing Pancake (Damaging)
+   Details: Dealt 211 damage
+
+[PASS] Pursuit (Damaging)
+   Details: Dealt 41 damage
+
+[PASS] Quick Attack (Damaging)
+   Details: Dealt 40 damage
+
+[PASS] Rage (Damaging)
+   Details: Dealt 23 damage
+
+[PASS] Rapid Spin (Damaging)
+   Details: Dealt 46 damage
+
+[PASS] Razor Leaf (Damaging)
+   Details: Dealt 54 damage
+
+[PASS] Razor Shell (Damaging)
+   Details: Dealt 74 damage
+
+[PASS] Retaliate (Damaging)
+   Details: Dealt 75 damage
+
+[PASS] Revenge (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Rock Blast (Damaging)
+   Details: Dealt 129 damage
+
+[PASS] Rock Climb (Damaging)
+   Details: Dealt 85 damage
+
+[PASS] Rock Slide (Damaging)
+   Details: Dealt 78 damage
+
+[PASS] Rock Smash (Damaging)
+   Details: Dealt 41 damage
+
+[PASS] Rock Throw (Damaging)
+   Details: Dealt 51 damage
+
+[PASS] Rock Tomb (Damaging)
+   Details: Dealt 63 damage
+
+[PASS] Rock Wrecker (Damaging)
+   Details: Dealt 138 damage
+
+[PASS] Rolling Kick (Damaging)
+   Details: Dealt 86 damage
+
+[PASS] Rollout (Damaging)
+   Details: Dealt 33 damage
+
+[PASS] Sacred Fire (Damaging)
+   Details: Dealt 109 damage
+
+[PASS] Sacred Sword (Damaging)
+   Details: Dealt 96 damage
+
+[PASS] Sand Tomb (Damaging)
+   Details: Dealt 33 damage
+
+[PASS] Sappy Seed (Damaging)
+   Details: Dealt 98 damage
+
+[PASS] Scratch (Damaging)
+   Details: Dealt 41 damage
+
+[PASS] Searing Sunraze Smash (Damaging)
+   Details: Dealt 189 damage
+
+[PASS] Secret Power (Damaging)
+   Details: Dealt 106 damage
+
+[PASS] Seed Bomb (Damaging)
+   Details: Dealt 86 damage
+
+[PASS] Self-Destruct (Damaging)
+   Details: Dealt 207 damage
+
+[PASS] Shadow Bone (Damaging)
+   Details: Dealt 87 damage
+
+[PASS] Shadow Claw (Damaging)
+   Details: Dealt 72 damage
+
+[PASS] Shadow Force (Damaging)
+   Details: Dealt 126 damage
+
+[PASS] Shadow Punch (Damaging)
+   Details: Dealt 64 damage
+
+[PASS] Shadow Sneak (Damaging)
+   Details: Dealt 39 damage
+
+[PASS] Sinister Arrow Raid (Damaging)
+   Details: Dealt 167 damage
+
+[PASS] Sizzly Slide (Damaging)
+   Details: Dealt 62 damage
+
+[PASS] Skull Bash (Damaging)
+   Details: Dealt 132 damage
+
+[PASS] Sky Attack (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Sky Drop (Damaging)
+   Details: Dealt 64 damage
+
+[PASS] Sky Uppercut (Damaging)
+   Details: Dealt 80 damage
+
+[PASS] Slam (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Slash (Damaging)
+   Details: Dealt 74 damage
+
+[PASS] Smack Down (Damaging)
+   Details: Dealt 52 damage
+
+[PASS] Smart Strike (Damaging)
+   Details: Dealt 70 damage
+
+[PASS] Smelling Salts (Damaging)
+   Details: Dealt 69 damage
+
+[PASS] Solar Blade (Damaging)
+   Details: Dealt 131 damage
+
+[PASS] Soul-Stealing 7-Star Strike (Damaging)
+   Details: Dealt 187 damage
+
+[PASS] Spark (Damaging)
+   Details: Dealt 47 damage
+
+[PASS] Spectral Thief (Damaging)
+   Details: Dealt 94 damage
+
+[PASS] Spike Cannon (Damaging)
+   Details: Dealt 66 damage
+
+[PASS] Spirit Shackle (Damaging)
+   Details: Dealt 118 damage
+
+[PASS] Splintered Stormshards (Damaging)
+   Details: Dealt 184 damage
+
+[PASS] Steamroller (Damaging)
+   Details: Dealt 64 damage
+
+[PASS] Steel Wing (Damaging)
+   Details: Dealt 68 damage
+
+[PASS] Stomp (Damaging)
+   Details: Dealt 61 damage
+
+[PASS] Stomping Tantrum (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Stone Edge (Damaging)
+   Details: Dealt 95 damage
+
+[PASS] Storm Throw (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Strength (Damaging)
+   Details: Dealt 86 damage
+
+[PASS] Struggle (Damaging)
+   Details: Dealt 49 damage
+
+[PASS] Submission (Damaging)
+   Details: Dealt 73 damage
+
+[PASS] Sucker Punch (Damaging)
+   Details: Dealt 72 damage
+
+[PASS] Sunsteel Strike (Damaging)
+   Details: Dealt 100 damage
+
+[PASS] Superpower (Damaging)
+   Details: Dealt 126 damage
+
+[PASS] Tackle (Damaging)
+   Details: Dealt 42 damage
+
+[PASS] Tail Slap (Damaging)
+   Details: Dealt 126 damage
+
+[PASS] Take Down (Damaging)
+   Details: Dealt 93 damage
+
+[PASS] Thief (Damaging)
+   Details: Dealt 62 damage
+
+[PASS] Thousand Arrows (Damaging)
+   Details: Dealt 97 damage
+
+[PASS] Thousand Waves (Damaging)
+   Details: Dealt 90 damage
+
+[PASS] Thrash (Damaging)
+   Details: Dealt 123 damage
+
+[PASS] Throat Chop (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Thunder Fang (Damaging)
+   Details: Dealt 47 damage
+
+[PASS] Thunder Punch (Damaging)
+   Details: Dealt 53 damage
+
+[PASS] Triple Kick (Damaging)
+   Details: Dealt 33 damage
+
+[PASS] Trop Kick (Damaging)
+   Details: Dealt 65 damage
+
+[PASS] Twineedle (Damaging)
+   Details: Dealt 78 damage
+
+[PASS] U-turn (Damaging)
+   Details: Dealt 68 damage
+
+[PASS] V-create (Damaging)
+   Details: Dealt 178 damage
+
+[PASS] Vine Whip (Damaging)
+   Details: Dealt 47 damage
+
+[PASS] Vise Grip (Damaging)
+   Details: Dealt 54 damage
+
+[PASS] Vital Throw (Damaging)
+   Details: Dealt 65 damage
+
+[PASS] Volt Tackle (Damaging)
+   Details: Dealt 96 damage
+
+[PASS] Wake-Up Slap (Damaging)
+   Details: Dealt 65 damage
+
+[PASS] Waterfall (Damaging)
+   Details: Dealt 73 damage
+
+[PASS] Wild Charge (Damaging)
+   Details: Dealt 62 damage
+
+[PASS] Wing Attack (Damaging)
+   Details: Dealt 56 damage
+
+[PASS] Wood Hammer (Damaging)
+   Details: Dealt 113 damage
+
+[PASS] Wrap (Damaging)
+   Details: Dealt 16 damage
+
+[PASS] X-Scissor (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Zen Headbutt (Damaging)
+   Details: Dealt 82 damage
+
+[PASS] Zing Zap (Damaging)
+   Details: Dealt 59 damage
+
+[PASS] Zippy Zap (Damaging)
+   Details: Dealt 59 damage
+
+[PASS] 10,000,000 Volt Thunderbolt (Damaging)
+   Details: Dealt 120 damage
+
+[PASS] Absorb (Damaging)
+   Details: Dealt 17 damage
+
+[PASS] Acid (Damaging)
+   Details: Dealt 30 damage
+
+[PASS] Acid Spray (Damaging)
+   Details: Dealt 33 damage
+
+[PASS] Aeroblast (Damaging)
+   Details: Dealt 79 damage
+
+[PASS] Air Cutter (Damaging)
+   Details: Dealt 48 damage
+
+[PASS] Air Slash (Damaging)
+   Details: Dealt 57 damage
+
+[PASS] Ancient Power (Damaging)
+   Details: Dealt 48 damage
+
+[PASS] Aura Sphere (Damaging)
+   Details: Dealt 68 damage
+
+[PASS] Aurora Beam (Damaging)
+   Details: Dealt 54 damage
+
+[PASS] Baddy Bad (Damaging)
+   Details: Dealt 67 damage
+
+[PASS] Belch (Damaging)
+   Details: Dealt 101 damage
+
+[PASS] Blast Burn (Damaging)
+   Details: Dealt 122 damage
+
+[PASS] Blizzard (Damaging)
+   Details: Dealt 88 damage
+
+[PASS] Blue Flare (Damaging)
+   Details: Dealt 107 damage
+
+[PASS] Boomburst (Damaging)
+   Details: Dealt 114 damage
+
+[PASS] Bouncy Bubble (Damaging)
+   Details: Dealt 52 damage
+
+[PASS] Brine (Damaging)
+   Details: Dealt 48 damage
+
+[PASS] Bubble (Damaging)
+   Details: Dealt 32 damage
+
+[PASS] Bubble Beam (Damaging)
+   Details: Dealt 54 damage
+
+[PASS] Bug Buzz (Damaging)
+   Details: Dealt 69 damage
+
+[PASS] Burn Up (Damaging)
+   Details: Dealt 110 damage
+
+[PASS] Buzzy Buzz (Damaging)
+   Details: Dealt 38 damage
+
+[PASS] Charge Beam (Damaging)
+   Details: Dealt 31 damage
+
+[PASS] Chatter (Damaging)
+   Details: Dealt 56 damage
+
+[PASS] Clanging Scales (Damaging)
+   Details: Dealt 88 damage
+
+[PASS] Clangorous Soulblaze (Damaging)
+   Details: Dealt 155 damage
+
+[PASS] Clear Smog (Damaging)
+   Details: Dealt 39 damage
+
+[PASS] Confusion (Damaging)
+   Details: Dealt 41 damage
+
+[PASS] Core Enforcer (Damaging)
+   Details: Dealt 83 damage
+
+[PASS] Dark Pulse (Damaging)
+   Details: Dealt 69 damage
+
+[PASS] Dazzling Gleam (Damaging)
+   Details: Dealt 68 damage
+
+[PASS] Disarming Voice (Damaging)
+   Details: Dealt 34 damage
+
+[PASS] Discharge (Damaging)
+   Details: Dealt 45 damage
+
+[PASS] Doom Desire (Damaging)
+   Details: Dealt 102 damage
+
+[PASS] Draco Meteor (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Dragon Breath (Damaging)
+   Details: Dealt 45 damage
+
+[PASS] Dragon Pulse (Damaging)
+   Details: Dealt 66 damage
+
+[PASS] Draining Kiss (Damaging)
+   Details: Dealt 41 damage
+
+[PASS] Dream Eater (Damaging)
+   Details: Dealt 73 damage
+
+[PASS] Earth Power (Damaging)
+   Details: Dealt 67 damage
+
+[PASS] Echoed Voice (Damaging)
+   Details: Dealt 35 damage
+
+[PASS] Electroweb (Damaging)
+   Details: Dealt 32 damage
+
+[PASS] Ember (Damaging)
+   Details: Dealt 35 damage
+
+[PASS] Energy Ball (Damaging)
+   Details: Dealt 74 damage
+
+[PASS] Eruption (Damaging)
+   Details: Dealt 122 damage
+
+[PASS] Extrasensory (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Fairy Wind (Damaging)
+   Details: Dealt 31 damage
+
+[PASS] Fiery Dance (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Fire Blast (Damaging)
+   Details: Dealt 84 damage
+
+[PASS] Fire Pledge (Damaging)
+   Details: Dealt 63 damage
+
+[PASS] Fire Spin (Damaging)
+   Details: Dealt 29 damage
+
+[PASS] Flame Burst (Damaging)
+   Details: Dealt 54 damage
+
+[PASS] Flamethrower (Damaging)
+   Details: Dealt 65 damage
+
+[PASS] Flash Cannon (Damaging)
+   Details: Dealt 61 damage
+
+[PASS] Fleur Cannon (Damaging)
+   Details: Dealt 106 damage
+
+[PASS] Focus Blast (Damaging)
+   Details: Dealt 99 damage
+
+[PASS] Freeze-Dry (Damaging)
+   Details: Dealt 57 damage
+
+[PASS] Freezy Frost (Damaging)
+   Details: Dealt 79 damage
+
+[PASS] Frenzy Plant (Damaging)
+   Details: Dealt 192 damage
+
+[PASS] Frost Breath (Damaging)
+   Details: Dealt 49 damage
+
+[PASS] Fusion Flare (Damaging)
+   Details: Dealt 75 damage
+
+[PASS] Future Sight (Damaging)
+   Details: Dealt 100 damage
+
+[PASS] Genesis Supernova (Damaging)
+   Details: Dealt 141 damage
+
+[PASS] Giga Drain (Damaging)
+   Details: Dealt 64 damage
+
+[PASS] Glaciate (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Glitzy Glow (Damaging)
+   Details: Dealt 64 damage
+
+[PASS] Grass Pledge (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Gust (Damaging)
+   Details: Dealt 34 damage
+
+[PASS] Heat Wave (Damaging)
+   Details: Dealt 74 damage
+
+[PASS] Hex (Damaging)
+   Details: Dealt 48 damage
+
+[PASS] Hidden Power (Damaging)
+   Details: Dealt 51 damage
+
+[PASS] Hurricane (Damaging)
+   Details: Dealt 90 damage
+
+[PASS] Hydro Cannon (Damaging)
+   Details: Dealt 112 damage
+
+[PASS] Hydro Pump (Damaging)
+   Details: Dealt 93 damage
+
+[PASS] Hyper Beam (Damaging)
+   Details: Dealt 108 damage
+
+[PASS] Hyper Voice (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Hyperspace Hole (Damaging)
+   Details: Dealt 67 damage
+
+[PASS] Ice Beam (Damaging)
+   Details: Dealt 66 damage
+
+[PASS] Ice Burn (Damaging)
+   Details: Dealt 192 damage
+
+[PASS] Icy Wind (Damaging)
+   Details: Dealt 44 damage
+
+[PASS] Incinerate (Damaging)
+   Details: Dealt 52 damage
+
+[PASS] Inferno (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Infestation (Damaging)
+   Details: Dealt 16 damage
+
+[PASS] Judgment (Damaging)
+   Details: Dealt 116 damage
+
+[PASS] Lava Plume (Damaging)
+   Details: Dealt 66 damage
+
+[PASS] Leaf Storm (Damaging)
+   Details: Dealt 94 damage
+
+[PASS] Leaf Tornado (Damaging)
+   Details: Dealt 53 damage
+
+[PASS] Light That Burns the Sky (Damaging)
+   Details: Dealt 158 damage
+
+[PASS] Light of Ruin (Damaging)
+   Details: Dealt 110 damage
+
+[PASS] Luster Purge (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Magical Leaf (Damaging)
+   Details: Dealt 44 damage
+
+[PASS] Magma Storm (Damaging)
+   Details: Dealt 81 damage
+
+[PASS] Mega Drain (Damaging)
+   Details: Dealt 35 damage
+
+[PASS] Menacing Moonraze Maelstrom (Damaging)
+   Details: Dealt 144 damage
+
+[PASS] Mind Blown (Damaging)
+   Details: Dealt 117 damage
+
+[PASS] Mirror Shot (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Mist Ball (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Moonblast (Damaging)
+   Details: Dealt 74 damage
+
+[PASS] Moongeist Beam (Damaging)
+   Details: Dealt 80 damage
+
+[PASS] Mud Bomb (Damaging)
+   Details: Dealt 53 damage
+
+[PASS] Mud Shot (Damaging)
+   Details: Dealt 42 damage
+
+[PASS] Mud-Slap (Damaging)
+   Details: Dealt 18 damage
+
+[PASS] Muddy Water (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Mystical Fire (Damaging)
+   Details: Dealt 61 damage
+
+[PASS] Night Daze (Damaging)
+   Details: Dealt 66 damage
+
+[PASS] Oblivion Wing (Damaging)
+   Details: Dealt 58 damage
+
+[PASS] Oceanic Operetta (Damaging)
+   Details: Dealt 155 damage
+
+[PASS] Octazooka (Damaging)
+   Details: Dealt 49 damage
+
+[PASS] Ominous Wind (Damaging)
+   Details: Dealt 49 damage
+
+[PASS] Origin Pulse (Damaging)
+   Details: Dealt 87 damage
+
+[PASS] Overheat (Damaging)
+   Details: Dealt 100 damage
+
+[PASS] Parabolic Charge (Damaging)
+   Details: Dealt 40 damage
+
+[PASS] Petal Dance (Damaging)
+   Details: Dealt 95 damage
+
+[PASS] Photon Geyser (Damaging)
+   Details: Dealt 86 damage
+
+[PASS] Pollen Puff (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Powder Snow (Damaging)
+   Details: Dealt 31 damage
+
+[PASS] Power Gem (Damaging)
+   Details: Dealt 67 damage
+
+[PASS] Prismatic Laser (Damaging)
+   Details: Dealt 136 damage
+
+[PASS] Psybeam (Damaging)
+   Details: Dealt 48 damage
+
+[PASS] Psychic (Damaging)
+   Details: Dealt 72 damage
+
+[PASS] Psycho Boost (Damaging)
+   Details: Dealt 118 damage
+
+[PASS] Psyshock (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Psystrike (Damaging)
+   Details: Dealt 77 damage
+
+[PASS] Razor Wind (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Relic Song (Damaging)
+   Details: Dealt 59 damage
+
+[PASS] Revelation Dance (Damaging)
+   Details: Dealt 115 damage
+
+[PASS] Roar of Time (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Round (Damaging)
+   Details: Dealt 74 damage
+
+[PASS] Scald (Damaging)
+   Details: Dealt 65 damage
+
+[PASS] Searing Shot (Damaging)
+   Details: Dealt 81 damage
+
+[PASS] Secret Sword (Damaging)
+   Details: Dealt 64 damage
+
+[PASS] Seed Flare (Damaging)
+   Details: Dealt 87 damage
+
+[PASS] Shadow Ball (Damaging)
+   Details: Dealt 65 damage
+
+[PASS] Shell Trap (Damaging)
+   Details: Dealt 112 damage
+
+[PASS] Shock Wave (Damaging)
+   Details: Dealt 34 damage
+
+[PASS] Signal Beam (Damaging)
+   Details: Dealt 63 damage
+
+[PASS] Silver Wind (Damaging)
+   Details: Dealt 45 damage
+
+[PASS] Sludge (Damaging)
+   Details: Dealt 49 damage
+
+[PASS] Sludge Bomb (Damaging)
+   Details: Dealt 98 damage
+
+[PASS] Sludge Wave (Damaging)
+   Details: Dealt 80 damage
+
+[PASS] Smog (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Snarl (Damaging)
+   Details: Dealt 44 damage
+
+[PASS] Snore (Damaging)
+   Details: Dealt 43 damage
+
+[PASS] Solar Beam (Damaging)
+   Details: Dealt 88 damage
+
+[PASS] Spacial Rend (Damaging)
+   Details: Dealt 81 damage
+
+[PASS] Sparkling Aria (Damaging)
+   Details: Dealt 71 damage
+
+[PASS] Sparkly Swirl (Damaging)
+   Details: Dealt 97 damage
+
+[PASS] Splishy Splash (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Steam Eruption (Damaging)
+   Details: Dealt 90 damage
+
+[PASS] Stoked Sparksurfer (Damaging)
+   Details: Dealt 110 damage
+
+[PASS] Stored Power (Damaging)
+   Details: Dealt 18 damage
+
+[PASS] Struggle Bug (Damaging)
+   Details: Dealt 44 damage
+
+[PASS] Surf (Damaging)
+   Details: Dealt 65 damage
+
+[PASS] Swift (Damaging)
+   Details: Dealt 47 damage
+
+[PASS] Synchronoise (Damaging)
+   Details: Dealt 89 damage
+
+[PASS] Techno Blast (Damaging)
+   Details: Dealt 93 damage
+
+[PASS] Thunder (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Thunder Shock (Damaging)
+   Details: Dealt 25 damage
+
+[PASS] Thunderbolt (Damaging)
+   Details: Dealt 55 damage
+
+[PASS] Tri Attack (Damaging)
+   Details: Dealt 60 damage
+
+[PASS] Twister (Damaging)
+   Details: Dealt 31 damage
+
+[PASS] Uproar (Damaging)
+   Details: Dealt 76 damage
+
+[PASS] Vacuum Wave (Damaging)
+   Details: Dealt 34 damage
+
+[PASS] Venoshock (Damaging)
+   Details: Dealt 50 damage
+
+[PASS] Volt Switch (Damaging)
+   Details: Dealt 44 damage
+
+[PASS] Water Gun (Damaging)
+   Details: Dealt 32 damage
+
+[PASS] Water Pledge (Damaging)
+   Details: Dealt 65 damage
+
+[PASS] Water Pulse (Damaging)
+   Details: Dealt 47 damage
+
+[PASS] Water Shuriken (Damaging)
+   Details: Dealt 39 damage
+
+[PASS] Water Spout (Damaging)
+   Details: Dealt 182 damage
+
+[PASS] Weather Ball (Damaging)
+   Details: Dealt 39 damage
+
+[PASS] Whirlpool (Damaging)
+   Details: Dealt 29 damage
+
+[PASS] Zap Cannon (Damaging)
+   Details: Dealt 0 damage
+
+[PASS] Thunder Wave (Status)
+   Details: Applied paralysis status
+
+[PASS] Toxic (Status)
+   Details: Applied poison status
+
+[PASS] Will-O-Wisp (Status)
+   Details: Applied burn status
+
+[PASS] Spore (Status)
+   Details: Applied sleep status
+
+[PASS] Sleep Powder (Status)
+   Details: Applied sleep status
+
+[PASS] Hypnosis (Status)
+   Details: Applied sleep status
+
+[PASS] Stun Spore (Status)
+   Details: Applied paralysis status
+
+[PASS] Poison Powder (Status)
+   Details: Applied poison status
+
+[PASS] Glare (Status)
+   Details: Applied paralysis status
+
+[PASS] Swords Dance (Stat Change)
+   Details: Modified stats: {'attack': 2}
+
+[PASS] Dragon Dance (Stat Change)
+   Details: Modified stats: {'attack': 1, 'speed': 1}
+
+[PASS] Nasty Plot (Stat Change)
+   Details: Modified stats: {'sp_attack': 2}
+
+[PASS] Calm Mind (Stat Change)
+   Details: Modified stats: {'sp_attack': 1, 'sp_defense': 1}
+
+[PASS] Bulk Up (Stat Change)
+   Details: Modified stats: {'attack': 1, 'defense': 1}
+
+[PASS] Coil (Stat Change)
+   Details: Modified stats: {'attack': 1, 'defense': 1, 'accuracy': 1}
+
+[PASS] Quiver Dance (Stat Change)
+   Details: Modified stats: {'sp_attack': 1, 'sp_defense': 1, 'speed': 1}
+
+[PASS] Agility (Stat Change)
+   Details: Modified stats: {'speed': 2}
+
+[PASS] Rock Polish (Stat Change)
+   Details: Modified stats: {'speed': 2}
+
+[PASS] Iron Defense (Stat Change)
+   Details: Modified stats: {'defense': 2}
+
+[PASS] Amnesia (Stat Change)
+   Details: Modified stats: {'sp_defense': 2}
+
+[PASS] Shell Smash (Stat Change)
+   Details: Modified stats: {'attack': 2, 'sp_attack': 2, 'speed': 2}
+
+[PASS] Growth (Stat Change)
+   Details: Modified stats: {'attack': 1, 'sp_attack': 1}
+
+[PASS] Recover (Healing)
+   Details: Healed 66 HP
+
+[PASS] Roost (Healing)
+   Details: Healed 67 HP
+
+[PASS] Rest (Healing)
+   Details: Healed 45 HP
+
+[PASS] Synthesis (Healing)
+   Details: Healed 64 HP
+
+[PASS] Moonlight (Healing)
+   Details: Healed 65 HP
+
+[PASS] Morning Sun (Healing)
+   Details: Healed 61 HP
+
+[PASS] Slack Off (Healing)
+   Details: Healed 62 HP
+
+[PASS] Soft-Boiled (Healing)
+   Details: Healed 68 HP
+
+[PASS] Wish (Healing)
+   Details: Healed 63 HP
+
+[PASS] Solar Beam (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Dig (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Fly (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Dive (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Bounce (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Sky Attack (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Counter (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Mirror Coat (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Metal Burst (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Bide (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Super Fang (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Psywave (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Endeavor (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Final Gambit (Complex)
+   Details: Move appears in turn log: True
+
+[PASS] Quick Attack (Priority)
+   Details: Priority 1, dealt 38 damage
+
+[PASS] Extreme Speed (Priority)
+   Details: Priority 1, dealt 77 damage
+
+[PASS] Aqua Jet (Priority)
+   Details: Priority 1, dealt 43 damage
+
+[PASS] Mach Punch (Priority)
+   Details: Priority 1, dealt 39 damage
+
+[PASS] Ice Shard (Priority)
+   Details: Priority 1, dealt 57 damage
+
+[PASS] Shadow Sneak (Priority)
+   Details: Priority 1, dealt 43 damage
+
+[PASS] Bullet Punch (Priority)
+   Details: Priority 1, dealt 39 damage
+
+[PASS] Sucker Punch (Priority)
+   Details: Priority 1, dealt 74 damage
+
+[PASS] Fake Out (Priority)
+   Details: Priority 1, dealt 42 damage
+
+[PASS] First Impression (Priority)
+   Details: Priority 1, dealt 93 damage
+
+[PASS] Rain Dance (Weather)
+   Details: Set weather: Rain
+
+[PASS] Sunny Day (Weather)
+   Details: Set weather: Sun
+
+[PASS] Sandstorm (Weather)
+   Details: Set weather: Sandstorm
+
+[PASS] Hail (Weather)
+   Details: Set weather: Hail
+
+[PASS] Reflect (Field Effect)
+   Details: Field effect appears to be set: True
+
+[PASS] Light Screen (Field Effect)
+   Details: Field effect appears to be set: True
+
+[PASS] Stealth Rock (Field Effect)
+   Details: Field effect appears to be set: True
+
+[PASS] Spikes (Field Effect)
+   Details: Field effect appears to be set: True
+
+[PASS] Toxic Spikes (Field Effect)
+   Details: Field effect appears to be set: True
+
+[PASS] Sticky Web (Field Effect)
+   Details: Field effect appears to be set: True
+
+[PASS] Double-Edge (Recoil)
+   Details: Dealt 119 damage, took 41 recoil
+
+[PASS] Flare Blitz (Recoil)
+   Details: Dealt 117 damage, took 39 recoil
+
+[PASS] Brave Bird (Recoil)
+   Details: Dealt 122 damage, took 42 recoil
+
+[PASS] Wood Hammer (Recoil)
+   Details: Dealt 117 damage, took 42 recoil
+
+[PASS] Head Smash (Recoil)
+   Details: Dealt 147 damage, took 38 recoil
+
+[PASS] Wild Charge (Recoil)
+   Details: Dealt 70 damage, took 38 recoil
+
+[PASS] Acid (Secondary Effect)
+   Details: 6/30 triggers (20.0%), expected 10% - Effect: stat_change
+
+[PASS] Air Slash (Secondary Effect)
+   Details: 7/30 triggers (23.3%), expected 30% - Effect: flinch
+
+[PASS] Aurora Beam (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 10% - Effect: stat_change
+
+[PASS] Bite (Secondary Effect)
+   Details: 13/30 triggers (43.3%), expected 30% - Effect: flinch
+
+[PASS] Blue Flare (Secondary Effect)
+   Details: 8/30 triggers (26.7%), expected 20% - Effect: burn
+
+[PASS] Body Slam (Secondary Effect)
+   Details: 9/30 triggers (30.0%), expected 30% - Effect: paralysis
+
+[PASS] Bolt Strike (Secondary Effect)
+   Details: 8/30 triggers (26.7%), expected 20% - Effect: paralysis
+
+[PASS] Bone Club (Secondary Effect)
+   Details: 3/30 triggers (10.0%), expected 10% - Effect: flinch
+
+[PASS] Bounce (Secondary Effect)
+   Details: 8/30 triggers (26.7%), expected 30% - Effect: paralysis
+
+[PASS] Bubble (Secondary Effect)
+   Details: 3/30 triggers (10.0%), expected 10% - Effect: stat_change
+
+[PASS] Bug Buzz (Secondary Effect)
+   Details: 5/30 triggers (16.7%), expected 10% - Effect: stat_change
+
+[PASS] Constrict (Secondary Effect)
+   Details: 3/30 triggers (10.0%), expected 10% - Effect: stat_change
+
+[PASS] Cross Poison (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 10% - Effect: poison
+
+[PASS] Crunch (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 20% - Effect: stat_change
+
+[PASS] Dark Pulse (Secondary Effect)
+   Details: 5/30 triggers (16.7%), expected 20% - Effect: flinch
+
+[PASS] Discharge (Secondary Effect)
+   Details: 7/30 triggers (23.3%), expected 30% - Effect: paralysis
+
+[PASS] Double Iron Bash (Secondary Effect)
+   Details: 5/30 triggers (16.7%), expected 30% - Effect: flinch
+
+[PASS] Dragon Breath (Secondary Effect)
+   Details: 14/30 triggers (46.7%), expected 30% - Effect: paralysis
+
+[PASS] Earth Power (Secondary Effect)
+   Details: 5/30 triggers (16.7%), expected 10% - Effect: stat_change
+
+[PASS] Ember (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 10% - Effect: burn
+
+[PASS] Energy Ball (Secondary Effect)
+   Details: 2/30 triggers (6.7%), expected 10% - Effect: stat_change
+
+[PASS] Fake Out (Secondary Effect)
+   Details: 30/30 triggers (100.0%), expected 100% - Effect: flinch
+
+[PASS] Fire Blast (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 10% - Effect: burn
+
+[PASS] Fire Punch (Secondary Effect)
+   Details: 6/30 triggers (20.0%), expected 10% - Effect: burn
+
+[PASS] Fissure (Secondary Effect)
+   Details: 30/30 triggers (100.0%), expected 30% - Effect: other
+
+[PASS] Flamethrower (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 10% - Effect: burn
+
+[PASS] Flash Cannon (Secondary Effect)
+   Details: 5/30 triggers (16.7%), expected 10% - Effect: stat_change
+
+[PASS] Focus Blast (Secondary Effect)
+   Details: 3/30 triggers (10.0%), expected 10% - Effect: stat_change
+
+[PASS] Guillotine (Secondary Effect)
+   Details: 30/30 triggers (100.0%), expected 30% - Effect: other
+
+[PASS] Gunk Shot (Secondary Effect)
+   Details: 7/30 triggers (23.3%), expected 30% - Effect: poison
+
+[PASS] Headbutt (Secondary Effect)
+   Details: 11/30 triggers (36.7%), expected 30% - Effect: flinch
+
+[PASS] Heart Stamp (Secondary Effect)
+   Details: 11/30 triggers (36.7%), expected 30% - Effect: flinch
+
+[PASS] Heat Wave (Secondary Effect)
+   Details: 3/30 triggers (10.0%), expected 10% - Effect: burn
+
+[PASS] Horn Drill (Secondary Effect)
+   Details: 30/30 triggers (100.0%), expected 30% - Effect: other
+
+[PASS] Hyper Fang (Secondary Effect)
+   Details: 12/30 triggers (40.0%), expected 30% - Effect: flinch
+
+[PASS] Ice Beam (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 10% - Effect: freeze
+
+[PASS] Ice Burn (Secondary Effect)
+   Details: 8/30 triggers (26.7%), expected 30% - Effect: burn
+
+[PASS] Iron Head (Secondary Effect)
+   Details: 15/30 triggers (50.0%), expected 30% - Effect: flinch
+
+[PASS] Lick (Secondary Effect)
+   Details: 9/30 triggers (30.0%), expected 30% - Effect: paralysis
+
+[PASS] Liquidation (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 20% - Effect: stat_change
+
+[PASS] Luster Purge (Secondary Effect)
+   Details: 20/30 triggers (66.7%), expected 50% - Effect: stat_change
+
+[PASS] Mirror Shot (Secondary Effect)
+   Details: 11/30 triggers (36.7%), expected 30% - Effect: stat_change
+
+[PASS] Mist Ball (Secondary Effect)
+   Details: 16/30 triggers (53.3%), expected 50% - Effect: stat_change
+
+[PASS] Moonblast (Secondary Effect)
+   Details: 8/30 triggers (26.7%), expected 30% - Effect: stat_change
+
+[PASS] Mud Bomb (Secondary Effect)
+   Details: 7/30 triggers (23.3%), expected 30% - Effect: stat_change
+
+[PASS] Needle Arm (Secondary Effect)
+   Details: 9/30 triggers (30.0%), expected 30% - Effect: flinch
+
+[PASS] Nuzzle (Secondary Effect)
+   Details: 30/30 triggers (100.0%), expected 100% - Effect: paralysis
+
+[PASS] Octazooka (Secondary Effect)
+   Details: 9/30 triggers (30.0%), expected 50% - Effect: stat_change
+
+[PASS] Origin Pulse (Secondary Effect)
+   Details: 3/30 triggers (10.0%), expected 10% - Effect: burn
+
+[PASS] Play Rough (Secondary Effect)
+   Details: 3/30 triggers (10.0%), expected 10% - Effect: stat_change
+
+[PASS] Poison Fang (Secondary Effect)
+   Details: 17/30 triggers (56.7%), expected 50% - Effect: poison
+
+[PASS] Poison Gas (Secondary Effect)
+   Details: 27/30 triggers (90.0%), expected 90% - Effect: poison
+
+[PASS] Poison Jab (Secondary Effect)
+   Details: 14/30 triggers (46.7%), expected 30% - Effect: poison
+
+[PASS] Poison Powder (Secondary Effect)
+   Details: 25/30 triggers (83.3%), expected 75% - Effect: poison
+
+[PASS] Poison Sting (Secondary Effect)
+   Details: 6/30 triggers (20.0%), expected 30% - Effect: poison
+
+[PASS] Poison Tail (Secondary Effect)
+   Details: 2/30 triggers (6.7%), expected 10% - Effect: poison
+
+[PASS] Powder Snow (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 10% - Effect: freeze
+
+[PASS] Power Whip (Secondary Effect)
+   Details: 30/30 triggers (100.0%), expected 25% - Effect: other
+
+[PASS] Precipice Blades (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 10% - Effect: flinch
+
+[PASS] Razor Shell (Secondary Effect)
+   Details: 12/30 triggers (40.0%), expected 50% - Effect: stat_change
+
+[PASS] Rolling Kick (Secondary Effect)
+   Details: 11/30 triggers (36.7%), expected 30% - Effect: flinch
+
+[PASS] Sacred Fire (Secondary Effect)
+   Details: 10/30 triggers (33.3%), expected 50% - Effect: burn
+
+[PASS] Scald (Secondary Effect)
+   Details: 7/30 triggers (23.3%), expected 30% - Effect: burn
+
+[PASS] Seed Flare (Secondary Effect)
+   Details: 9/30 triggers (30.0%), expected 40% - Effect: stat_change
+
+[PASS] Shadow Ball (Secondary Effect)
+   Details: 8/30 triggers (26.7%), expected 20% - Effect: stat_change
+
+[PASS] Shadow Bone (Secondary Effect)
+   Details: 6/30 triggers (20.0%), expected 20% - Effect: stat_change
+
+[PASS] Sheer Cold (Secondary Effect)
+   Details: 30/30 triggers (100.0%), expected 30% - Effect: other
+
+[PASS] Sky Attack (Secondary Effect)
+   Details: 9/30 triggers (30.0%), expected 30% - Effect: flinch
+
+[PASS] Sludge (Secondary Effect)
+   Details: 8/30 triggers (26.7%), expected 30% - Effect: poison
+
+[PASS] Sludge Bomb (Secondary Effect)
+   Details: 10/30 triggers (33.3%), expected 30% - Effect: poison
+
+[PASS] Sludge Wave (Secondary Effect)
+   Details: 2/30 triggers (6.7%), expected 10% - Effect: poison
+
+[PASS] Smog (Secondary Effect)
+   Details: 6/30 triggers (20.0%), expected 30% - Effect: poison
+
+[PASS] Stomp (Secondary Effect)
+   Details: 16/30 triggers (53.3%), expected 30% - Effect: flinch
+
+[PASS] Thunder (Secondary Effect)
+   Details: 8/30 triggers (26.7%), expected 30% - Effect: paralysis
+
+[PASS] Thunder Fang (Secondary Effect)
+   Details: 5/30 triggers (16.7%), expected 10% - Effect: paralysis
+
+[PASS] Thunder Shock (Secondary Effect)
+   Details: 5/30 triggers (16.7%), expected 10% - Effect: paralysis
+
+[PASS] Thunderbolt (Secondary Effect)
+   Details: 3/30 triggers (10.0%), expected 10% - Effect: paralysis
+
+[PASS] Tri Attack (Secondary Effect)
+   Details: 8/30 triggers (26.7%), expected 20% - Effect: paralysis
+
+[PASS] Twineedle (Secondary Effect)
+   Details: 6/30 triggers (20.0%), expected 20% - Effect: poison
+
+[PASS] Waterfall (Secondary Effect)
+   Details: 4/30 triggers (13.3%), expected 20% - Effect: flinch
+
+[PASS] Zen Headbutt (Secondary Effect)
+   Details: 5/30 triggers (16.7%), expected 20% - Effect: flinch
+
+[PASS] Zing Zap (Secondary Effect)
+   Details: 10/30 triggers (33.3%), expected 30% - Effect: flinch
+
+================================================================================
+FAILED TESTS
+================================================================================
+
+[FAIL] Ancient Power (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Blizzard (Secondary Effect)
+   Reason: Expected 10% but got 3.3%
+
+[FAIL] Bubble Beam (Secondary Effect)
+   Reason: Expected 10% but got 3.3%
+
+[FAIL] Chatter (Secondary Effect)
+   Reason: Expected 100% but got 0.0%
+
+[FAIL] Confusion (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Diamond Storm (Secondary Effect)
+   Reason: Expected 50% but got 0.0%
+
+[FAIL] Dizzy Punch (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Dragon Rush (Secondary Effect)
+   Reason: Expected 20% but got 3.3%
+
+[FAIL] Dynamic Punch (Secondary Effect)
+   Reason: Expected 100% but got 0.0%
+
+[FAIL] Fire Fang (Secondary Effect)
+   Reason: Expected 10% but got 3.3%
+
+[FAIL] Freeze Shock (Secondary Effect)
+   Reason: Expected 30% but got 10.0%
+
+[FAIL] Hurricane (Secondary Effect)
+   Reason: Expected 30% but got 0.0%
+
+[FAIL] Ice Fang (Secondary Effect)
+   Reason: Expected 10% but got 3.3%
+
+[FAIL] Ice Punch (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Icicle Crash (Secondary Effect)
+   Reason: Expected 30% but got 10.0%
+
+[FAIL] Inferno (Secondary Effect)
+   Reason: Expected 100% but got 53.3%
+
+[FAIL] Metal Claw (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Meteor Mash (Secondary Effect)
+   Reason: Expected 20% but got 0.0%
+
+[FAIL] Ominous Wind (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Petal Dance (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Psybeam (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Psychic (Secondary Effect)
+   Reason: Expected 10% but got 3.3%
+
+[FAIL] Rage (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Rock Slide (Secondary Effect)
+   Reason: Expected 30% but got 10.0%
+
+[FAIL] Signal Beam (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Silver Wind (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Thrash (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Thunder Punch (Secondary Effect)
+   Reason: Expected 10% but got 0.0%
+
+[FAIL] Zap Cannon (Secondary Effect)
+   Reason: Expected 100% but got 56.7%
+
+================================================================================
+ERRORS
+================================================================================
+
+================================================================================
+WARNINGS
+================================================================================

@@ -10,7 +10,7 @@ import random
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'models'))
 
-from models.Pokemon import Pokemon
+from models.Pokemon import Pokemon  
 from models.team_generation import TeamGenerator, TeamComposition, Archetype
 from models.cpu import CPUTrainer, AIFlag
 from models.turn_logic import TurnManager, BattleAction, ActionType
@@ -212,103 +212,82 @@ class PokemonGame:
             print(f"Turn {turn_count}")
             print("="*70)
             
-            # Show battle status with stat changes
-            player_stats = player_active.get_stat_changes_display()
-            player_stats_str = f" [{player_stats}]" if player_stats else ""
-            print(f"\nYour {player_active.name} (Lv.{player_active.level}): {player_active.current_hp}/{player_active.max_hp} HP{player_stats_str}")
+            # Show current HP
+            print(f"\n{player_active.name}: {player_active.current_hp}/{player_active.max_hp} HP")
+            print(f"{opponent_active.name}: {opponent_active.current_hp}/{opponent_active.max_hp} HP")
             
-            opponent_stats = opponent_active.get_stat_changes_display()
-            opponent_stats_str = f" [{opponent_stats}]" if opponent_stats else ""
-            print(f"Opponent's {opponent_active.name} (Lv.{opponent_active.level}): {opponent_active.current_hp}/{opponent_active.max_hp} HP{opponent_stats_str}")
+            # Get player action
+            player_choice = self.get_player_action(player_active, opponent_active)
             
-            # Player chooses action
-            player_action = self.get_player_action(player_active, opponent_active)
-            
-            if player_action is None:
-                print("\nYou forfeit the battle!")
-                return ('loss', [])
-            
-            # CPU chooses move
-            cpu_result = cpu.choose_move(opponent_active, player_active)
-            cpu_move = cpu_result['move']
-            
-            print(f"\nOpponent's {opponent_active.name} will use {cpu_move['name']}!")
-            
-            # Create battle actions
-            if isinstance(player_action, dict) and player_action.get('action') == 'switch':
-                # Handle switch
-                player_battle_action = BattleAction(player_active, ActionType.SWITCH, switch_target=self.player_team[0])
+            # Create BattleAction for player
+            if player_choice.get('action') == 'switch':
+                player_action = BattleAction(
+                    pokemon=player_active,
+                    action_type=ActionType.SWITCH,
+                    target=player_choice['pokemon']
+                )
             else:
-                # Handle move
-                player_battle_action = BattleAction(player_active, ActionType.FIGHT, move=player_action, target=opponent_active)
+                player_action = BattleAction(
+                    pokemon=player_active,
+                    action_type=ActionType.FIGHT,
+                    move=player_choice,
+                    target=opponent_active
+                )
             
-            cpu_battle_action = BattleAction(opponent_active, ActionType.FIGHT, move=cpu_move, target=player_active)
+            # Get CPU action
+            cpu_choice = cpu.choose_move(
+                opponent_active,
+                player_active,
+                battle_state
+            )
+            cpu_move = cpu_choice['move']
             
-            # Execute turn with full turn logic
-            turn_result = turn_manager.execute_turn([player_battle_action, cpu_battle_action])
+            cpu_action = BattleAction(
+                pokemon=opponent_active,
+                action_type=ActionType.FIGHT,
+                move=cpu_move,
+                target=player_active
+            )
             
-            # Display turn log
-            for log_entry in turn_result['turn_log']:
-                print(log_entry)
+            # Execute turn using TurnManager
+            player_alive, opponent_alive = self.execute_turn(
+                turn_manager,
+                battle_state,
+                player_action,
+                cpu_action
+            )
             
-            # Update active Pokemon references after switches
-            player_active = battle_state['player1_active']
-            opponent_active = battle_state['player2_active']
-            
-            # Handle forced switches (Flip Turn, U-turn, Volt Switch, etc.)
-            forced_switches = turn_result.get('forced_switches', [])
-            for pokemon in forced_switches:
-                if pokemon in battle_state['player1_team']:
-                    # Player's Pokemon must switch out
-                    alive_pokemon = [p for p in battle_state['player1_team'] if p.current_hp > 0 and p != player_active]
-                    if alive_pokemon:
-                        print(f"\n{player_active.name} must switch out!")
-                        new_active = self.force_switch(exclude=[player_active])
-                        battle_state['player1_active'] = new_active
-                        player_active = new_active
-                        print(f"Go, {player_active.name}!")
-                elif pokemon in battle_state['player2_team']:
-                    # Opponent's Pokemon must switch out
-                    alive_pokemon = [p for p in battle_state['player2_team'] if p.current_hp > 0 and p != opponent_active]
-                    if alive_pokemon:
-                        print(f"\nOpponent's {opponent_active.name} went back!")
-                        opponent_active = random.choice(alive_pokemon)
-                        battle_state['player2_active'] = opponent_active
-                        print(f"Opponent sends out {opponent_active.name}!")
-            
-            # Check for fainted Pokemon
-            if opponent_active.current_hp <= 0:
-                print(f"\nOpponent's {opponent_active.name} fainted!")
-                defeated_opponents.append(opponent_active)  # Track for EXP
-                battle_state['player2_team'].remove(opponent_active)
+            # Check for faints and handle switches
+            if not opponent_alive:
+                print(f"\n{opponent_active.name} fainted!")
+                defeated_opponents.append(opponent_active)
                 
-                if not battle_state['player2_team']:
-                    print("\n" + "="*70)
-                    print("VICTORY!")
-                    print("="*70)
+                # Remove from opponent team
+                opponent_team = [p for p in opponent_team if p.current_hp > 0]
+                
+                if not opponent_team:
+                    print("\nYou won the battle!")
                     return ('win', defeated_opponents)
                 
-                # Switch to next opponent Pokemon
-                opponent_active = battle_state['player2_team'][0]
+                # Opponent switches
+                opponent_active = opponent_team[0]
                 battle_state['player2_active'] = opponent_active
                 print(f"\nOpponent sends out {opponent_active.name}!")
             
-            if player_active.current_hp <= 0:
-                print(f"\nYour {player_active.name} fainted!")
-                player_active.fainted = True
+            if not player_alive:
+                print(f"\n{player_active.name} fainted!")
                 
-                # Check if all Pokemon fainted
-                alive_pokemon = [p for p in battle_state['player1_team'] if p.current_hp > 0]
-                if not alive_pokemon:
-                    print("\n" + "="*70)
-                    print("DEFEAT!")
-                    print("="*70)
+                # Get alive Pokemon
+                alive_team = [p for p in self.player_team if p.current_hp > 0]
+                
+                if not alive_team:
+                    print("\nYou lost the battle!")
+                    self.show_game_over()
                     return ('loss', [])
                 
-                # Player must switch to alive Pokemon
-                player_active = self.force_switch()
+                # Force player to switch
+                player_active = self.force_switch(exclude=[player_active])
                 battle_state['player1_active'] = player_active
-                print(f"\nYou send out {player_active.name}!")
             
             input("\nPress Enter to continue...")
     
@@ -454,243 +433,36 @@ class PokemonGame:
             except (ValueError, KeyboardInterrupt):
                 print("Invalid input. Try again.")
     
-    def execute_simple_turn(self, player_pokemon, opponent_pokemon, player_move, cpu_move):
-        """Execute a simplified turn (direct damage calculation)
-        Returns the current active player Pokemon (may change after switch)"""
+    def execute_turn(self, turn_manager, battle_state, player_action, cpu_action):
+        """Execute a turn using TurnManager (database-driven)
+        Returns tuple: (player_still_active, opponent_still_active)"""
         
-        # Check for switch
-        if isinstance(player_move, dict) and player_move.get('action') == 'switch':
-            print(f"\nYou switched to {self.player_team[0].name}!")
-            # Opponent attacks the newly switched Pokemon
-            self.execute_move(opponent_pokemon, self.player_team[0], cpu_move)
-            return self.player_team[0]  # Return new active Pokemon
+        # Handle player switch
+        if player_action.action_type == ActionType.SWITCH:
+            old_pokemon = battle_state['player1_active']
+            new_pokemon = player_action.target
+            print(f"\nYou switched to {new_pokemon.name}!")
+            battle_state['player1_active'] = new_pokemon
+            # Update player_team order
+            self.player_team.remove(new_pokemon)
+            self.player_team.insert(0, new_pokemon)
+            return (new_pokemon.current_hp > 0, battle_state['player2_active'].current_hp > 0)
         
-        # Determine order based on priority, then speed
-        player_priority = player_move.get('priority', 0)
-        cpu_priority = cpu_move.get('priority', 0)
+        # Execute turn through TurnManager (handles all move logic via database)
+        turn_result = turn_manager.execute_turn([player_action, cpu_action])
         
-        # First check priority
-        if player_priority > cpu_priority:
-            player_goes_first = True
-        elif cpu_priority > player_priority:
-            player_goes_first = False
-        else:
-            # Same priority, check speed
-            player_goes_first = player_pokemon.speed >= opponent_pokemon.speed
+        # Display turn results from turn log
+        for message in turn_result['turn_log']:
+            # Skip empty messages
+            if message.strip():
+                print(f"  {message}")
         
-        if player_goes_first:
-            print(f"\n{player_pokemon.name} uses {player_move['name']}!")
-            self.execute_move(player_pokemon, opponent_pokemon, player_move)
-            
-            if opponent_pokemon.current_hp > 0:
-                print(f"\nOpponent's {opponent_pokemon.name} uses {cpu_move['name']}!")
-                self.execute_move(opponent_pokemon, player_pokemon, cpu_move)
-        else:
-            print(f"\nOpponent's {opponent_pokemon.name} uses {cpu_move['name']}!")
-            self.execute_move(opponent_pokemon, player_pokemon, cpu_move)
-            
-            if player_pokemon.current_hp > 0:
-                print(f"\n{player_pokemon.name} uses {player_move['name']}!")
-                self.execute_move(player_pokemon, opponent_pokemon, player_move)
+        player_alive = battle_state['player1_active'].current_hp > 0
+        opponent_alive = battle_state['player2_active'].current_hp > 0
         
-        return player_pokemon  # Return unchanged player Pokemon
+        return (player_alive, opponent_alive)
     
-    def execute_move(self, attacker, defender, move):
-        """Execute a move and calculate damage/effects"""
-        # Handle status/healing moves
-        if not move.get('causes_damage', False) or not move.get('power'):
-            print(f"  {move['name']} was used!")
-            self._apply_status_move(attacker, defender, move)
-            return
-        
-        # Simplified damage calculation
-        level = attacker.level
-        power = move['power']
-        
-        if move['category'] == 'Physical':
-            attack = attacker.attack
-            defense = defender.defense
-        else:
-            attack = attacker.sp_attack
-            defense = defender.sp_defense
-        
-        # Basic damage formula
-        damage = ((2 * level / 5 + 2) * power * attack / defense / 50 + 2)
-        
-        # Random factor
-        damage = int(damage * random.uniform(0.85, 1.0))
-        
-        # Type effectiveness (simplified)
-        attacker_data = self.generator.pokemon_repo.get_by_id(attacker.id)
-        defender_data = self.generator.pokemon_repo.get_by_id(defender.id)
-        
-        # STAB
-        if move['type'] in [attacker_data.get('type1'), attacker_data.get('type2')]:
-            damage = int(damage * 1.5)
-        
-        # Apply damage
-        defender.current_hp = max(0, defender.current_hp - damage)
-        
-        print(f"  It dealt {damage} damage!")
-        
-        # Show effectiveness message (simplified)
-        if damage > power * 1.5:
-            print("  It's super effective!")
-        elif damage < power * 0.75:
-            print("  It's not very effective...")
-        
-        # Apply secondary effects (like paralysis from Nuzzle)
-        self._apply_secondary_effects(attacker, defender, move, damage)
-        
-        # Apply secondary effects (like paralysis from Nuzzle)
-        self._apply_secondary_effects(attacker, defender, move, damage)
-    
-    def _apply_status_move(self, user, target, move):
-        """Apply effects of status moves like healing, stat changes, etc."""
-        move_name = move['name'].lower()
-        
-        # Healing moves
-        if move_name in ['synthesis', 'moonlight', 'morning sun']:
-            heal_amount = user.max_hp // 2
-            user.current_hp = min(user.max_hp, user.current_hp + heal_amount)
-            print(f"  {user.name} restored {heal_amount} HP!")
-        elif move_name in ['recover', 'roost', 'slack off', 'soft-boiled']:
-            heal_amount = user.max_hp // 2
-            user.current_hp = min(user.max_hp, user.current_hp + heal_amount)
-            print(f"  {user.name} restored {heal_amount} HP!")
-        elif move_name == 'rest':
-            user.current_hp = user.max_hp
-            user.status = 'sleep'
-            user.sleep_turns = 2
-            print(f"  {user.name} went to sleep and restored all HP!")
-        
-        # Stat-boosting moves
-        elif move_name in ['swords dance', 'nasty plot']:
-            # +2 to Attack or Sp. Attack
-            stat = 'attack' if move_name == 'swords dance' else 'sp_attack'
-            user.modify_stat_stage(stat, 2)
-            stat_display = 'Attack' if stat == 'attack' else 'Special Attack'
-            print(f"  {user.name}'s {stat_display} sharply rose!")
-        elif move_name == 'dragon dance':
-            # +1 Attack, +1 Speed
-            user.modify_stat_stage('attack', 1)
-            user.modify_stat_stage('speed', 1)
-            print(f"  {user.name}'s Attack and Speed rose!")
-        elif move_name == 'quiver dance':
-            # +1 Sp. Attack, +1 Sp. Defense, +1 Speed
-            user.modify_stat_stage('sp_attack', 1)
-            user.modify_stat_stage('sp_defense', 1)
-            user.modify_stat_stage('speed', 1)
-            print(f"  {user.name}'s Special Attack, Special Defense, and Speed rose!")
-        elif move_name == 'calm mind':
-            # +1 Sp. Attack, +1 Sp. Defense
-            user.modify_stat_stage('sp_attack', 1)
-            user.modify_stat_stage('sp_defense', 1)
-            print(f"  {user.name}'s Special Attack and Special Defense rose!")
-        elif move_name == 'bulk up':
-            # +1 Attack, +1 Defense
-            user.modify_stat_stage('attack', 1)
-            user.modify_stat_stage('defense', 1)
-            print(f"  {user.name}'s Attack and Defense rose!")
-        elif move_name == 'coil':
-            # +1 Attack, +1 Defense, +1 Accuracy
-            user.modify_stat_stage('attack', 1)
-            user.modify_stat_stage('defense', 1)
-            user.modify_stat_stage('accuracy', 1)
-            print(f"  {user.name}'s Attack, Defense, and Accuracy rose!")
-        elif move_name in ['agility', 'rock polish']:
-            # +2 Speed
-            user.modify_stat_stage('speed', 2)
-            print(f"  {user.name}'s Speed sharply rose!")
-        elif move_name in ['iron defense', 'acid armor']:
-            # +2 Defense
-            user.modify_stat_stage('defense', 2)
-            print(f"  {user.name}'s Defense sharply rose!")
-        elif move_name == 'amnesia':
-            # +2 Sp. Defense
-            user.modify_stat_stage('sp_defense', 2)
-            print(f"  {user.name}'s Special Defense sharply rose!")
-        elif move_name == 'shell smash':
-            # -1 Defense, -1 Sp. Defense, +2 Attack, +2 Sp. Attack, +2 Speed
-            user.modify_stat_stage('defense', -1)
-            user.modify_stat_stage('sp_defense', -1)
-            user.modify_stat_stage('attack', 2)
-            user.modify_stat_stage('sp_attack', 2)
-            user.modify_stat_stage('speed', 2)
-            print(f"  {user.name}'s defenses fell, but offensive stats sharply rose!")
-        
-        # Status-inflicting moves
-        elif move_name == 'thunder wave':
-            if target.status is None or target.status == '':
-                target.status = 'paralysis'
-                print(f"  {target.name} was paralyzed!")
-            else:
-                print(f"  But it failed!")
-        elif move_name == 'toxic':
-            if target.status is None or target.status == '':
-                target.status = 'badly poisoned'
-                print(f"  {target.name} was badly poisoned!")
-            else:
-                print(f"  But it failed!")
-        elif move_name in ['will-o-wisp', 'fire fang']:
-            if target.status is None or target.status == '':
-                target.status = 'burn'
-                print(f"  {target.name} was burned!")
-            else:
-                print(f"  But it failed!")
-        elif move_name in ['sleep powder', 'spore', 'hypnosis']:
-            if target.status is None or target.status == '':
-                target.status = 'sleep'
-                target.sleep_turns = random.randint(1, 3)
-                print(f"  {target.name} fell asleep!")
-            else:
-                print(f"  But it failed!")
-        
-        # Hazards and field effects
-        elif 'spikes' in move_name or 'stealth rock' in move_name:
-            print(f"  {move['name']} was set up!")
-        elif 'screen' in move_name or 'veil' in move_name:
-            print(f"  {move['name']} was set up!")
-        else:
-            print(f"  (Status effect applied)")
-    
-    def _apply_secondary_effects(self, attacker, defender, move, damage):
-        """Apply secondary effects from damaging moves (like paralysis, flinch, etc.)"""
-        move_name = move['name'].lower()
-        
-        # Moves with paralysis chance
-        if move_name == 'nuzzle':
-            if defender.status is None or defender.status == '':
-                defender.status = 'paralysis'
-                print(f"  {defender.name} was paralyzed!")
-        elif move_name in ['thunder fang', 'thunder punch', 'thunderbolt', 'discharge']:
-            if (defender.status is None or defender.status == '') and random.random() < 0.1:
-                defender.status = 'paralysis'
-                print(f"  {defender.name} was paralyzed!")
-        
-        # Moves with burn chance
-        elif move_name in ['fire fang', 'fire punch', 'flamethrower', 'lava plume']:
-            if (defender.status is None or defender.status == '') and random.random() < 0.1:
-                defender.status = 'burn'
-                print(f"  {defender.name} was burned!")
-        
-        # Moves with freeze chance
-        elif move_name in ['ice fang', 'ice punch', 'ice beam', 'blizzard']:
-            if (defender.status is None or defender.status == '') and random.random() < 0.1:
-                defender.status = 'freeze'
-                print(f"  {defender.name} was frozen solid!")
-        
-        # Moves with poison chance
-        elif move_name in ['poison fang', 'poison jab', 'sludge bomb']:
-            if (defender.status is None or defender.status == '') and random.random() < 0.3:
-                defender.status = 'poison'
-                print(f"  {defender.name} was poisoned!")
-        
-        # Flinch moves (high-priority moves)
-        elif move_name in ['fake out', 'iron head']:
-            if random.random() < 0.3:
-                print(f"  {defender.name} flinched!")
-    
+
     def teach_move_to_team(self):
         """Allow player to teach a new move to one of their Pokemon"""
         print("\n" + "="*70)

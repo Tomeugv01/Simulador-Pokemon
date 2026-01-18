@@ -1081,6 +1081,27 @@ class TurnManager:
         effect_name = effect.get('effect_name', '')
         field_condition = effect.get('field_condition', '')
         
+        # Flinch effect
+        if 'Flinch' in effect_name or effect_name == 'Flinch':
+            # Only flinch if target hasn't acted yet this turn
+            if not hasattr(target, 'has_acted'):
+                target.has_acted = False
+            
+            if not target.has_acted:
+                target.flinched = True
+                self._log(f"{target.name} flinched!")
+            return
+        
+        # Confusion effect
+        if 'Confusion' in effect_name or 'Confuse' in effect_name:
+            # Apply confusion as a status condition
+            if not target.status or target.status == '':
+                target.apply_status('confusion')
+                self._log(f"{target.name} became confused!")
+            else:
+                self._log(f"But it failed!")
+            return
+        
         # OHKO moves
         if field_condition == 'OHKO' or 'OHKO' in effect_name:
             # One-Hit KO - reduce target to 0 HP

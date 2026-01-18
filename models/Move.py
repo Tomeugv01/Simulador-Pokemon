@@ -105,6 +105,30 @@ class Move:
         """Check if move has a specific effect"""
         return self.get_effect_by_name(effect_name) is not None
     
+    def has_effect_type(self, effect_type):
+        """
+        Check if move has any effect of the specified type.
+        
+        Args:
+            effect_type (str): Effect type to check (STATUS, STAT_CHANGE, HEAL, etc.)
+        
+        Returns:
+            bool: True if move has at least one effect of that type
+        """
+        return any(eff.get('effect_type') == effect_type for eff in self.effects)
+    
+    def get_effects_by_type(self, effect_type):
+        """
+        Get all effects of a specific type.
+        
+        Args:
+            effect_type (str): Effect type to filter by
+        
+        Returns:
+            list: List of matching effects
+        """
+        return [eff for eff in self.effects if eff.get('effect_type') == effect_type]
+    
     def is_damaging(self):
         """Check if move deals damage"""
         return self.causes_damage and self.power is not None and self.power > 0

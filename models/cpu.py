@@ -232,94 +232,123 @@ class CPUTrainer:
         if not move.get('causes_damage', True):
             modifier = self._score_status_move(move, user, target, battle_state, move_name_lower)
         
-        # Recovery moves
-        if any(keyword in move_name_lower for keyword in ['recover', 'roost', 'rest', 'synthesis', 'moonlight']):
-            if user.current_hp >= user.max_hp:
+        # Recovery moves - check for heal effects
+        if move.get('effects'):
+            has_heal = any(eff.get('effect_type') == 'HEAL' and eff.get('heal_percentage', 0) > 0 
+                          for eff in move.get('effects', []))
+            if has_heal and user.current_hp >= user.max_hp:
                 modifier = -8
         
-        # Charge turn moves (Solar Beam, Sky Attack, etc.)
-        if any(keyword in move_name_lower for keyword in ['solar', 'sky attack', 'razor wind']):
-            # Simplified: penalize charge moves unless weather helps
-            if 'solar' in move_name_lower and battle_state.get('weather', {}).get('type') != 'Sun':
-                modifier = -5
+        # Charge turn moves - check for Charge Turn effect
+        if move.get('effects'):
+            has_charge = any(eff.get('effect_name') == 'Charge Turn' or eff.get('field_condition') == 'Charge'
+                           for eff in move.get('effects', []))
+            if has_charge:
+                # Penalize charge moves unless weather helps (Solar Beam)
+                if 'solar' in move_name_lower and battle_state.get('weather', {}).get('type') != 'Sun':
+                    modifier = -5
+                else:
+                    modifier = -3  # General penalty for charge moves
         
-        # Stat boosting moves
-        if any(keyword in move_name_lower for keyword in ['swords dance', 'nasty plot', 'dragon dance', 'calm mind']):
-            modifier = self._score_stat_boost(move, user, target, battle_state)
+        # Stat boosting moves - check for STAT_CHANGE effects
+        if move.get('effects'):
+            has_stat_boost = any(eff.get('effect_type') == 'STAT_CHANGE' and 
+                               eff.get('stat_change_amount', 0) > 0 and
+                               eff.get('effect_target') == 'User'
+                               for eff in move.get('effects', []))
+            if has_stat_boost:
+                modifier = self._score_stat_boost(move, user, target, battle_state)
         
-        # Self-destruct/Explosion
-        if 'explosion' in move_name_lower or 'self-destruct' in move_name_lower:
-            # Check if immune
-            if self._is_immune_by_type(move.get('type', 'Normal'), self.pokemon_repo.get_by_id(target.id)):
-                modifier = -10
-            # Check if on last Pokemon
-            # Simplified: assume we don't want to explode easily
-            elif user.current_hp < user.max_hp * 0.3:
-                modifier = -10
+        # Self-destruct/Explosion - check for RECOIL effects that KO the user
+        if move.get('effects'):
+            has_ko_recoil = any(eff.get('effect_type') == 'RECOIL' and 
+                              eff.get('recoil_percentage', 0) >= 100
+                              for eff in move.get('effects', []))
+            if has_ko_recoil:
+                # Check if immune
+                if self._is_immune_by_type(move.get('type', 'Normal'), self.pokemon_repo.get_by_id(target.id)):
+                    modifier = -10
+                # Check if on last Pokemon
+                # Simplified: assume we don't want to explode easily
+                elif user.current_hp < user.max_hp * 0.3:
+                    modifier = -10
         
         return modifier
     
     def _score_status_move(self, move: Dict, user: any, target: any, 
                           battle_state: Dict, move_name_lower: str) -> int:
-        """Score status-inflicting moves"""
+        """Score status-inflicting moves using database effects"""
         modifier = 0
         
-        # Sleep moves
-        if any(keyword in move_name_lower for keyword in ['hypnosis', 'sleep', 'spore', 'yawn']):
-            if target.status is not None or hasattr(target, 'safeguard'):
-                modifier = -10
+        # Check what status conditions this move inflicts
+        effects = move.get('effects', [])
         
-        # Poison moves
-        elif any(keyword in move_name_lower for keyword in ['toxic', 'poison']):
-            target_data = self.pokemon_repo.get_by_id(target.id)
-            target_types = [target_data.get('type1'), target_data.get('type2')]
-            if 'Poison' in target_types or 'Steel' in target_types:
-                modifier = -10
-            elif target.status is not None:
-                modifier = -10
-        
-        # Paralysis moves
-        elif any(keyword in move_name_lower for keyword in ['thunder wave', 'stun spore']):
-            if target.status is not None:
-                modifier = -10
-        
-        # Burn moves
-        elif any(keyword in move_name_lower for keyword in ['will-o-wisp', 'burn']):
-            target_data = self.pokemon_repo.get_by_id(target.id)
-            target_types = [target_data.get('type1'), target_data.get('type2')]
-            if 'Fire' in target_types:
-                modifier = -10
-            elif target.status is not None:
-                modifier = -10
-        
-        # Confusion moves
-        elif any(keyword in move_name_lower for keyword in ['confuse', 'swagger']):
-            if hasattr(target, 'confused') and target.confused:
-                modifier = -5
+        for effect in effects:
+            if effect.get('effect_type') == 'STATUS':
+                status_condition = effect.get('status_condition', 'None')
+                
+                # Sleep moves
+                if status_condition == 'Sleep':
+                    if target.status is not None or hasattr(target, 'safeguard'):
+                        modifier = -10
+                
+                # Poison moves
+                elif status_condition == 'Poison':
+                    target_data = self.pokemon_repo.get_by_id(target.id)
+                    target_types = [target_data.get('type1'), target_data.get('type2')]
+                    if 'Poison' in target_types or 'Steel' in target_types:
+                        modifier = -10
+                    elif target.status is not None:
+                        modifier = -10
+                
+                # Paralysis moves
+                elif status_condition == 'Paralysis':
+                    if target.status is not None:
+                        modifier = -10
+                
+                # Burn moves
+                elif status_condition == 'Burn':
+                    target_data = self.pokemon_repo.get_by_id(target.id)
+                    target_types = [target_data.get('type1'), target_data.get('type2')]
+                    if 'Fire' in target_types:
+                        modifier = -10
+                    elif target.status is not None:
+                        modifier = -10
+                
+                # Confusion
+                elif status_condition == 'Confusion':
+                    if hasattr(target, 'confused') and target.confused:
+                        modifier = -5
         
         return modifier
     
     def _score_stat_boost(self, move: Dict, user: any, target: any, battle_state: Dict) -> int:
-        """Score stat-boosting moves"""
+        """Score stat-boosting moves using database effects"""
         modifier = 0
-        move_name_lower = move.get('name', '').lower()
         
-        # Check if already at +6 in relevant stat
-        if 'attack' in move_name_lower or 'swords' in move_name_lower:
-            if user.stat_stages.get('attack', 0) >= 6:
-                modifier = -10
-        elif 'special' in move_name_lower or 'nasty' in move_name_lower or 'calm' in move_name_lower:
-            if user.stat_stages.get('sp_attack', 0) >= 6:
-                modifier = -10
-        elif 'speed' in move_name_lower or 'agility' in move_name_lower:
-            if user.stat_stages.get('speed', 0) >= 6:
-                modifier = -10
-            # Check Trick Room
-            if battle_state.get('field_effects', {}).get('trick_room', False):
-                modifier = -10
-        elif 'defense' in move_name_lower:
-            if user.stat_stages.get('defense', 0) >= 6:
-                modifier = -10
+        # Get stat change effects
+        effects = move.get('effects', [])
+        for effect in effects:
+            if effect.get('effect_type') == 'STAT_CHANGE' and effect.get('effect_target') == 'User':
+                stat = effect.get('stat_to_change', '')
+                amount = effect.get('stat_change_amount', 0)
+                
+                if amount > 0:  # Stat boost (ignore stat drops)
+                    # Check if already at max stage for this stat
+                    if stat == 'attack' and user.stat_stages.get('attack', 0) >= 6:
+                        modifier = -10
+                    elif stat == 'sp_attack' and user.stat_stages.get('sp_attack', 0) >= 6:
+                        modifier = -10
+                    elif stat == 'speed':
+                        if user.stat_stages.get('speed', 0) >= 6:
+                            modifier = -10
+                        # Check Trick Room
+                        if battle_state.get('field_effects', {}).get('trick_room', False):
+                            modifier = -10
+                    elif stat == 'defense' and user.stat_stages.get('defense', 0) >= 6:
+                        modifier = -10
+                    elif stat == 'sp_defense' and user.stat_stages.get('sp_defense', 0) >= 6:
+                        modifier = -10
         
         return modifier
     
@@ -422,10 +451,14 @@ class CPUTrainer:
             
             # Prefer setup if target is slower and we're healthy
             if user.current_hp > user.max_hp * 0.7:
-                if any(keyword in move_name_lower for keyword in ['swords dance', 'nasty plot', 'dragon dance']):
-                    if user.speed > target.speed:
-                        data['score'] += 5
-                        data['modifiers'].append("Expert: Setup opportunity +5")
+                # Check for stat-boosting moves (setup moves)
+                has_stat_boost = any(eff.get('effect_type') == 'STAT_CHANGE' and 
+                                   eff.get('stat_change_amount', 0) > 0 and
+                                   eff.get('effect_target') == 'User'
+                                   for eff in move.get('effects', []))
+                if has_stat_boost and user.speed > target.speed:
+                    data['score'] += 5
+                    data['modifiers'].append("Expert: Setup opportunity +5")
             
             # Avoid setting up if low HP
             if user.current_hp < user.max_hp * 0.4:
@@ -457,8 +490,10 @@ class CPUTrainer:
             move = data['move']
             move_name_lower = move.get('name', '').lower()
             
-            # Healing moves when low HP
-            if any(keyword in move_name_lower for keyword in ['recover', 'roost', 'rest', 'synthesis']):
+            # Healing moves when low HP - check for HEAL effects
+            has_heal = any(eff.get('effect_type') == 'HEAL' and eff.get('heal_percentage', 0) > 0 
+                          for eff in move.get('effects', []))
+            if has_heal:
                 if user_hp_percent < 0.3:
                     data['score'] += 20
                     data['modifiers'].append("Check HP: Critical HP, heal +20")
