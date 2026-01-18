@@ -39,7 +39,7 @@ class PokemonRepository:
         cursor.execute('''
             SELECT id, name, type1, type2, hp, attack, defense, 
                    special_attack, special_defense, speed, total_stats,
-                   evolution_level, exp_curve
+                   evolution_level, exp_curve, evolves_to_id
             FROM pokemon 
             WHERE id = ?
         ''', (pokemon_id,))
@@ -63,7 +63,8 @@ class PokemonRepository:
             'speed': row[9],
             'total_stats': row[10],
             'evolution_level': row[11],
-            'exp_curve': row[12]
+            'exp_curve': row[12],
+            'evolves_to_id': row[13]
         }
     
     def get_by_name(self, name):
@@ -82,7 +83,7 @@ class PokemonRepository:
         cursor.execute('''
             SELECT id, name, type1, type2, hp, attack, defense, 
                    special_attack, special_defense, speed, total_stats,
-                   evolution_level, exp_curve
+                   evolution_level, exp_curve, evolves_to_id
             FROM pokemon 
             WHERE name = ?
         ''', (name,))
@@ -106,7 +107,8 @@ class PokemonRepository:
             'speed': row[9],
             'total_stats': row[10],
             'evolution_level': row[11],
-            'exp_curve': row[12]
+            'exp_curve': row[12],
+            'evolves_to_id': row[13]
         }
     
     def get_all(self, order_by='id'):
@@ -129,7 +131,7 @@ class PokemonRepository:
         cursor.execute(f'''
             SELECT id, name, type1, type2, hp, attack, defense, 
                    special_attack, special_defense, speed, total_stats,
-                   evolution_level, exp_curve
+                   evolution_level, exp_curve, evolves_to_id
             FROM pokemon 
             ORDER BY {order_by}
         ''')
@@ -151,7 +153,8 @@ class PokemonRepository:
                 'speed': row[9],
                 'total_stats': row[10],
                 'evolution_level': row[11],
-                'exp_curve': row[12]
+                'exp_curve': row[12],
+                'evolves_to_id': row[13]
             }
             for row in rows
         ]
@@ -172,7 +175,7 @@ class PokemonRepository:
         cursor.execute('''
             SELECT id, name, type1, type2, hp, attack, defense, 
                    special_attack, special_defense, speed, total_stats,
-                   evolution_level, exp_curve
+                   evolution_level, exp_curve, evolves_to_id
             FROM pokemon 
             WHERE type1 = ? OR type2 = ?
             ORDER BY name
@@ -195,7 +198,8 @@ class PokemonRepository:
                 'speed': row[9],
                 'total_stats': row[10],
                 'evolution_level': row[11],
-                'exp_curve': row[12]
+                'exp_curve': row[12],
+                'evolves_to_id': row[13]
             }
             for row in rows
         ]

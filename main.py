@@ -653,9 +653,9 @@ class PokemonGame:
                 print(f"\n{pokemon.name} gained {total_exp:,} EXP (Level {pokemon.level})")
             
             # Check for evolution
-            can_evolve, evo_id = pokemon.can_evolve()
+            can_evolve, evo_ids = pokemon.can_evolve()
             if can_evolve:
-                evolutions_available.append((pokemon, evo_id))
+                evolutions_available.append((pokemon, evo_ids))
         
         # Handle evolutions
         if evolutions_available:
@@ -663,12 +663,36 @@ class PokemonGame:
             print("EVOLUTION TIME!")
             print("="*70)
             
-            for pokemon, evo_id in evolutions_available:
-                # Get evolution name
-                evo_data = self.generator.pokemon_repo.get_by_id(evo_id)
-                evo_name = evo_data['name'] if evo_data else "???"
+            for pokemon, evo_ids in evolutions_available:
+                # Handle multiple evolution paths (e.g., Eevee)
+                import random
                 
-                print(f"\n{pokemon.name} wants to evolve into {evo_name}!")
+                # If multiple evolutions, randomly choose one (equal odds)
+                if len(evo_ids) > 1:
+                    # Get names of all possible evolutions
+                    evo_options = []
+                    for evo_id in evo_ids:
+                        evo_data = self.generator.pokemon_repo.get_by_id(evo_id)
+                        if evo_data:
+                            evo_options.append((evo_id, evo_data['name']))
+                    
+                    if evo_options:
+                        # Randomly select one with equal probability
+                        chosen_evo_id, chosen_evo_name = random.choice(evo_options)
+                        print(f"\n{pokemon.name} wants to evolve!")
+                        print(f"Possible evolutions: {', '.join([name for _, name in evo_options])}")
+                        print(f"Evolution selected: {chosen_evo_name}")
+                        evo_id = chosen_evo_id
+                        evo_name = chosen_evo_name
+                    else:
+                        continue
+                else:
+                    # Single evolution path
+                    evo_id = evo_ids[0]
+                    evo_data = self.generator.pokemon_repo.get_by_id(evo_id)
+                    evo_name = evo_data['name'] if evo_data else "???"
+                    print(f"\n{pokemon.name} wants to evolve into {evo_name}!")
+                
                 choice = input("Allow evolution? (y/n): ").strip().lower()
                 
                 if choice == 'y':
