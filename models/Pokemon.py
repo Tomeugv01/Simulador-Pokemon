@@ -53,6 +53,58 @@ class Pokemon:
             return type_id  # Already a name
         return Pokemon.TYPE_NAMES.get(type_id, 'Unknown')
     
+    @staticmethod
+    def generate_ivs(round_number=None, is_starter=False):
+        """
+        Generate random IVs based on game progress or starter status.
+        
+        Args:
+            round_number (int): Current game round (affects average IV quality)
+            is_starter (bool): If True, biases IVs to be much higher
+            
+        Returns:
+            dict: Dictionary of IVs {'hp': x, 'attack': y, ...}
+        """
+        import random
+        
+        ivs = {}
+        stats = ['hp', 'attack', 'defense', 'sp_attack', 'sp_defense', 'speed']
+        
+        if is_starter:
+            # Starters get biased rolls: Max 31 is guaranteed in 3 stats
+            # The rest are rolled relatively high (15-31)
+            guaranteed_max = random.sample(stats, 3)
+            for stat in stats:
+                if stat in guaranteed_max:
+                    ivs[stat] = 31
+                else:
+                    ivs[stat] = random.randint(15, 31)
+        
+        elif round_number is not None:
+            # Scale based on round number
+            # Round 1: Avg 10
+            # Round 10: Avg 25
+            # Max round considered ~20
+            
+            # Base floor/ceiling increases with round
+            min_val = min(20, round_number * 1)
+            max_val = min(31, 15 + round_number * 1)
+            
+            for stat in stats:
+                # Still allow some randomness, but skewed higher
+                # 20% chance for perfect IV even in early rounds
+                if random.random() < 0.1:
+                    ivs[stat] = 31
+                else:
+                    ivs[stat] = random.randint(min_val, max_val)
+        
+        else:
+            # Full random 0-31
+            for stat in stats:
+                ivs[stat] = random.randint(0, 31)
+                
+        return ivs
+
     def __init__(self, pokemon_id, level=50, moveset=None, ivs=None, evs=None):
         """
         Create a Pokemon instance.
@@ -90,10 +142,20 @@ class Pokemon:
         self.exp_curve = base_data['exp_curve']
         
         # IVs and EVs (for more advanced stat calculation)
-        self.ivs = ivs or {
-            'hp': 31, 'attack': 31, 'defense': 31,
-            'sp_attack': 31, 'sp_defense': 31, 'speed': 31
-        }
+        if ivs is None:
+            # Randomize IVs if not provided (default 0-31)
+            import random
+            self.ivs = {
+                'hp': random.randint(0, 31), 
+                'attack': random.randint(0, 31), 
+                'defense': random.randint(0, 31),
+                'sp_attack': random.randint(0, 31), 
+                'sp_defense': random.randint(0, 31), 
+                'speed': random.randint(0, 31)
+            }
+        else:
+            self.ivs = ivs
+            
         self.evs = evs or {
             'hp': 0, 'attack': 0, 'defense': 0,
             'sp_attack': 0, 'sp_defense': 0, 'speed': 0

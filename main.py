@@ -155,11 +155,16 @@ class PokemonGame:
         # Determine team size based on round
         team_size = min(3 + (self.current_round // 3), 6)
         
+        # Calculate player average level
+        total_levels = sum(p.level for p in self.player_team)
+        avg_level = max(5, total_levels // max(1, len(self.player_team)))
+        
         # Generate opponent team
         opponent_team = self.generator.generate_opponent_team(
             round_number=self.current_round,
             team_size=team_size,
-            composition=random.choice(list(TeamComposition))
+            composition=random.choice(list(TeamComposition)),
+            player_average_level=avg_level
         )
         
         # Display opponent team

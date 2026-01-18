@@ -114,7 +114,8 @@ class TeamGenerator:
     # ========== OPPONENT TEAM GENERATION ==========
     
     def generate_opponent_team(self, round_number: int, team_size: int = 6,
-                              composition: Optional[TeamComposition] = None) -> List[Pokemon]:
+                              composition: Optional[TeamComposition] = None,
+                              player_average_level: int = 5) -> List[Pokemon]:
         """
         Generate an opponent team for a specific round
         
@@ -122,6 +123,7 @@ class TeamGenerator:
             round_number: Current round/encounter number (1-indexed)
             team_size: Number of Pokemon in the team (default 6)
             composition: Team composition pattern (random if None)
+            player_average_level: Average level of player's team for scaling (default: 5)
             
         Returns:
             List of Pokemon objects for the opponent team
@@ -142,7 +144,16 @@ class TeamGenerator:
             pokemon_data = self._select_pokemon_by_budget(budget, tolerance=10)
             if pokemon_data:
                 # Create Pokemon instance with random moves
-                pokemon = self._create_pokemon_instance(pokemon_data, round_number)
+                # Scale level relative to player, but ensure progression
+                # Level = Player Level +/- 2, plus small round bonus
+                level_variance = random.randint(-2, 2)
+                # Ensure level is at least 1 and reasonable relative to base round logic
+                target_level = max(1, player_average_level + level_variance)
+                
+                # Also consider round number to prevent being too easy if player is underleveled
+                # But mostly respect player level to prevent impossible jumps or triviality
+                
+                pokemon = self._create_pokemon_instance(pokemon_data, round_number, level=target_level)
                 team.append(pokemon)
         
         return team
@@ -288,12 +299,14 @@ class TeamGenerator:
             exp_curve = pokemon_data.get('exp_curve', 'medium-fast')
             level = ExperienceCurve.scale_level_for_curve(base_level, exp_curve)
         
+        # Calculate dynamic IVs based on round number
+        ivs = Pokemon.generate_ivs(round_number=round_number)
+
         # Create Pokemon instance
         pokemon = Pokemon(
             pokemon_id=pokemon_data['id'],
             level=level,
-            ivs={'hp': 31, 'attack': 31, 'defense': 31, 
-                 'sp_attack': 31, 'sp_defense': 31, 'speed': 31},
+            ivs=ivs,
             evs={'hp': 85, 'attack': 85, 'defense': 85,
                  'sp_attack': 85, 'sp_defense': 85, 'speed': 85}
         )
@@ -935,7 +948,20 @@ class TeamGenerator:
                     exp_curve = pokemon_data.get('exp_curve', 'medium-fast')
                     scaled_level = ExperienceCurve.scale_level_for_curve(base_level, exp_curve)
                     
+                    # Generate with STARTER BIAS IVs
+                    starter_ivs = Pokemon.generate_ivs(is_starter=True)
                     pokemon = self._create_pokemon_instance(pokemon_data, round_number=1, level=scaled_level)
+                    # Override the IVs to use starter bias
+                    pokemon.ivs = starter_ivs
+                    # Recalculate stats with new IVs
+                    pokemon.max_hp = pokemon._calculate_hp_stat()
+                    pokemon.current_hp = pokemon.max_hp
+                    pokemon.attack = pokemon._calculate_stat('attack')
+                    pokemon.defense = pokemon._calculate_stat('defense')
+                    pokemon.sp_attack = pokemon._calculate_stat('sp_attack')
+                    pokemon.sp_defense = pokemon._calculate_stat('sp_defense')
+                    pokemon.speed = pokemon._calculate_stat('speed')
+                    
                     choices.append(pokemon)
             
             all_choices.append(choices)
@@ -1004,10 +1030,11 @@ class TeamGenerator:
     
     def _pokemon_to_data(self, pokemon: Pokemon) -> Dict:
         """Convert Pokemon instance back to data dict for TSB calculation"""
+        # Use BASE stats, not current stats, to match database TSB definition
         return {
-            'total_stats': pokemon.max_hp + pokemon.attack + 
-                          pokemon.defense + pokemon.sp_attack +
-                          pokemon.sp_defense + pokemon.speed
+            'total_stats': pokemon.base_hp + pokemon.base_attack + 
+                          pokemon.base_defense + pokemon.base_sp_attack +
+                          pokemon.base_sp_defense + pokemon.base_speed
         }
     
     # ========== TEAM MANAGEMENT ==========
