@@ -257,6 +257,10 @@ class PokemonGame:
                 cpu_action
             )
             
+            # Update active Pokemon references from battle state
+            player_active = battle_state['player1_active']
+            opponent_active = battle_state['player2_active']
+            
             # Check for faints and handle switches
             if not opponent_alive:
                 print(f"\n{opponent_active.name} fainted!")
@@ -370,9 +374,11 @@ class PokemonGame:
                 
                 pokemon_idx = int(choice)
                 if 1 <= pokemon_idx < len(self.player_team):
+                    # Get the Pokemon to switch to
+                    switch_to = self.player_team[pokemon_idx]
                     # Swap positions
                     self.player_team[0], self.player_team[pokemon_idx] = self.player_team[pokemon_idx], self.player_team[0]
-                    return {'action': 'switch'}
+                    return {'action': 'switch', 'pokemon': switch_to}
                 else:
                     print("Invalid choice. Try again.")
             except (ValueError, KeyboardInterrupt):
