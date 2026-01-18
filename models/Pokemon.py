@@ -12,14 +12,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from src.repositories import PokemonRepository, MoveRepository
+    from src.database import get_moves_at_level
 except ImportError:
     # Try alternative import path
     try:
         from repositories import PokemonRepository, MoveRepository
+        from database import get_moves_at_level
     except ImportError:
         import sys
         sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
         from repositories import PokemonRepository, MoveRepository
+        from database import get_moves_at_level
 
 from Move import Move
 
@@ -728,6 +731,65 @@ class Pokemon:
             'exp_gained': exp_amount,
             'total_exp': self.current_exp
         }
+    
+    def check_moves_learned_at_level(self, level):
+        """
+        Check what moves this Pokemon learns at a specific level.
+        
+        Args:
+            level (int): Level to check
+            
+        Returns:
+            list: List of move dicts with 'id' and 'name'
+        """
+        return get_moves_at_level(self.id, level)
+    
+    def learn_move(self, move_id, replace_index=None):
+        """
+        Learn a new move, optionally replacing an existing one.
+        
+        Args:
+            move_id (int): ID of the move to learn
+            replace_index (int): Index (0-3) of move to replace, or None to append
+            
+        Returns:
+            dict: Result with 'success', 'message', and 'replaced_move' if applicable
+        """
+        # Load the move
+        move_repo = MoveRepository()
+        move_data = move_repo.get_by_id(move_id)
+        
+        if not move_data:
+            return {'success': False, 'message': 'Move not found'}
+        
+        # Check if Pokemon already knows this move
+        for i, existing_move in enumerate(self.moves):
+            if existing_move.get('id') == move_id:
+                # If replacing this exact move, allow it
+                if replace_index == i:
+                    break
+                return {'success': False, 'message': f'Already knows {move_data["name"]}'}
+        
+        # If replace_index is specified, replace that move
+        if replace_index is not None:
+            if 0 <= replace_index < len(self.moves):
+                old_move = self.moves[replace_index]
+                self.moves[replace_index] = move_data
+                return {
+                    'success': True,
+                    'message': f'Learned {move_data["name"]}!',
+                    'replaced_move': old_move
+                }
+            else:
+                return {'success': False, 'message': 'Invalid move slot'}
+        
+        # If less than 4 moves, just add it
+        if len(self.moves) < 4:
+            self.moves.append(move_data)
+            return {'success': True, 'message': f'Learned {move_data["name"]}!'}
+        
+        # Already has 4 moves and no replacement specified
+        return {'success': False, 'message': 'Already knows 4 moves'}
     
     def level_up(self, levels=1):
         """

@@ -15,10 +15,12 @@ try:
     from repositories import PokemonRepository, MoveRepository
     from Pokemon import Pokemon
     from experience import ExperienceCurve
+    from database import get_available_moves_for_level
 except ImportError:
     from src.repositories import PokemonRepository, MoveRepository
     from models.Pokemon import Pokemon
     from models.experience import ExperienceCurve
+    from src.database import get_available_moves_for_level
 
 
 class TeamComposition(Enum):
@@ -300,8 +302,20 @@ class TeamGenerator:
         tsb = self.calculate_tsb(pokemon_data)
         num_moves = self._determine_move_count(tsb, level, round_number)
         
-        # Assign moves using archetype-based system
-        moves = self._select_moves_for_pokemon(pokemon_data, round_number, num_moves)
+        # Get moves from learnset based on Pokemon's level
+        learnset_moves = get_available_moves_for_level(
+            pokemon_id=pokemon_data['id'],
+            current_level=level,
+            count=num_moves
+        )
+        
+        # Convert move IDs to move data dictionaries
+        if learnset_moves:
+            moves = [self.move_repo.get_by_id(move['id']) for move in learnset_moves]
+        else:
+            # Fallback: If no learnset data, use archetype-based system
+            moves = self._select_moves_for_pokemon(pokemon_data, round_number, num_moves)
+        
         pokemon.moves = moves
         
         return pokemon
@@ -1111,6 +1125,50 @@ class TeamGenerator:
         print(f"Team Average TSB: {summary['avg_tsb']}")
         print(f"Team Average Level: {summary['avg_level']}")
         print(f"{'='*60}\n")
+    
+    def _generate_pokemon(self, pokemon_data: Dict, level: int) -> Pokemon:
+        """Generate a Pokemon with learnset-based moves (for starter generation)"""
+        # Create Pokemon instance
+        pokemon = Pokemon(
+            pokemon_id=pokemon_data['id'],
+            level=level,
+            ivs={'hp': 31, 'attack': 31, 'defense': 31, 
+                 'sp_attack': 31, 'sp_defense': 31, 'speed': 31},
+            evs={'hp': 0, 'attack': 0, 'defense': 0,
+                 'sp_attack': 0, 'sp_defense': 0, 'speed': 0}
+        )
+        
+        # Get 4 moves from learnset
+        learnset_moves = get_available_moves_for_level(
+            pokemon_id=pokemon_data['id'],
+            current_level=level,
+            count=4
+        )
+        
+        if learnset_moves:
+            moves = [self.move_repo.get_by_id(move['id']) for move in learnset_moves]
+        else:
+            # Fallback: use archetype-based system
+            moves = self._select_moves_for_pokemon(pokemon_data, round_number=1, num_moves=4)
+        
+        pokemon.moves = moves
+        return pokemon
+    
+    def _get_pokemon_near_tsb(self, target_tsb: int, level: int, 
+                             exclude_species: set) -> Pokemon:
+        """Get a Pokemon near the target TSB for rewards"""
+        candidates = [
+            p for p in self.all_pokemon
+            if abs(p['total_stats'] - target_tsb) <= 50
+            and p['species_id'] not in exclude_species
+        ]
+        
+        if not candidates:
+            candidates = [p for p in self.all_pokemon 
+                         if p['species_id'] not in exclude_species]
+        
+        pokemon_data = random.choice(candidates)
+        return self._generate_pokemon(pokemon_data, level)
 
 
 # ========== EXAMPLE USAGE ==========

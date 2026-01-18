@@ -600,6 +600,49 @@ class PokemonGame:
                 gains = exp_result['stat_gains']
                 print(f"  HP +{gains['hp']}, Atk +{gains['attack']}, Def +{gains['defense']}")
                 print(f"  SpA +{gains['sp_attack']}, SpD +{gains['sp_defense']}, Spe +{gains['speed']}")
+                
+                # Check for new moves learned at each level
+                for level in range(exp_result['old_level'] + 1, exp_result['new_level'] + 1):
+                    new_moves = pokemon.check_moves_learned_at_level(level)
+                    
+                    for new_move in new_moves:
+                        # Check if Pokemon already knows this move
+                        already_knows = any(m.get('id') == new_move['id'] for m in pokemon.moves)
+                        if already_knows:
+                            continue  # Skip moves already known
+                        
+                        print(f"\n{pokemon.name} wants to learn {new_move['name']}!")
+                        
+                        # If already has 4 moves, prompt for replacement
+                        if len(pokemon.moves) >= 4:
+                            print(f"\nBut {pokemon.name} already knows 4 moves!")
+                            print(f"Current moves:")
+                            for i, move in enumerate(pokemon.moves):
+                                move_info = f"{move['name']} (PP: {move.get('pp', '?')}/{move.get('pp', '?')})"
+                                print(f"  {i+1}. {move_info}")
+                            
+                            while True:
+                                choice = input(f"\nReplace a move with {new_move['name']}? (1-4 to replace, 0 to skip): ").strip()
+                                
+                                if choice == '0':
+                                    print(f"{pokemon.name} did not learn {new_move['name']}.")
+                                    break
+                                elif choice in ['1', '2', '3', '4']:
+                                    replace_idx = int(choice) - 1
+                                    result = pokemon.learn_move(new_move['id'], replace_index=replace_idx)
+                                    
+                                    if result['success']:
+                                        old_move_name = result['replaced_move']['name']
+                                        print(f"\n{pokemon.name} forgot {old_move_name}...")
+                                        print(f"And learned {new_move['name']}!")
+                                    break
+                                else:
+                                    print("Invalid choice. Please enter 0-4.")
+                        else:
+                            # Has less than 4 moves, learn it automatically
+                            result = pokemon.learn_move(new_move['id'])
+                            if result['success']:
+                                print(f"{pokemon.name} learned {new_move['name']}!")
             else:
                 print(f"\n{pokemon.name} gained {total_exp:,} EXP (Level {pokemon.level})")
             
