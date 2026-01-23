@@ -141,7 +141,6 @@ class Pokemon:
         self.base_sp_defense = base_data['special_defense']
         self.base_speed = base_data['speed']
         self.evolution_level = base_data['evolution_level']
-        self.evolves_to_id = base_data.get('evolves_to_id')  # New evolution field
         self.exp_curve = base_data['exp_curve']
         
         # IVs and EVs (for more advanced stat calculation)
@@ -975,13 +974,7 @@ class Pokemon:
             tuple: (bool, list or None) - (can_evolve, list of evolution_ids)
                    If multiple evolutions available, returns all options
         """
-        # Quick check: if legacy column is null, likely checks are unneeded, 
-        # but to be sure we should check unless we are certain.
-        # However, for performance, we trust the entity loader populated evolves_to_id 
-        # as a flag that "some evolution exists".
-        if not hasattr(self, 'evolves_to_id') or self.evolves_to_id is None:
-            return False, None
-            
+        # Check pokemon_evolutions table for evolution data
         import sqlite3
         
         valid_evolutions = []
@@ -991,7 +984,7 @@ class Pokemon:
             conn = sqlite3.connect('data/pokemon_battle.db')
             cursor = conn.cursor()
             
-            # Check for multiple evolutions in the new table
+            # Check for evolutions in the pokemon_evolutions table
             cursor.execute('''
                 SELECT evolves_to_id, evolution_level 
                 FROM pokemon_evolutions 
@@ -1000,19 +993,26 @@ class Pokemon:
             rows = cursor.fetchall()
             
             if rows:
+                # Check each possible evolution
                 for evo_id, evo_lvl in rows:
                     if self.level >= evo_lvl:
                         valid_evolutions.append(evo_id)
             else:
-                # Fallback to legacy behavior if table is empty for this mon
+                # Fallback to legacy evolution_level field if no entries in pokemon_evolutions
                 if self.evolution_level and self.level >= self.evolution_level:
-                    valid_evolutions.append(self.evolves_to_id)
+                    # Query to find what this Pokemon evolves into
+                    cursor.execute('''
+                        SELECT id FROM pokemon 
+                        WHERE id > ? AND evolution_level <= ?
+                        ORDER BY id LIMIT 1
+                    ''', (self.id, self.level))
+                    next_evo = cursor.fetchone()
+                    if next_evo:
+                        valid_evolutions.append(next_evo[0])
 
         except sqlite3.Error as e:
             print(f"Database error in can_evolve: {e}")
-            # Fallback
-            if self.evolution_level and self.level >= self.evolution_level:
-                valid_evolutions.append(self.evolves_to_id)
+            return False, None
         finally:
             if conn:
                 conn.close()
@@ -1069,7 +1069,6 @@ class Pokemon:
         self.base_sp_defense = new_data['special_defense']
         self.base_speed = new_data['speed']
         self.evolution_level = new_data['evolution_level']
-        self.evolves_to_id = new_data.get('evolves_to_id')  # Store evolution target
         self.exp_curve = new_data['exp_curve']
         
         # Recalculate stats
