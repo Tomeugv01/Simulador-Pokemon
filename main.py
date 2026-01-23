@@ -217,9 +217,14 @@ class PokemonGame:
             print(f"Turn {turn_count}")
             print("="*70)
             
-            # Show current HP
-            print(f"\n{player_active.name}: {player_active.current_hp}/{player_active.max_hp} HP")
-            print(f"{opponent_active.name}: {opponent_active.current_hp}/{opponent_active.max_hp} HP")
+            # Show current HP with stat changes
+            player_stats = player_active.get_stat_changes_display()
+            player_stats_str = f" ({player_stats})" if player_stats else ""
+            print(f"\n{player_active.name}: {player_active.current_hp}/{player_active.max_hp} HP{player_stats_str}")
+            
+            opponent_stats = opponent_active.get_stat_changes_display()
+            opponent_stats_str = f" ({opponent_stats})" if opponent_stats else ""
+            print(f"{opponent_active.name}: {opponent_active.current_hp}/{opponent_active.max_hp} HP{opponent_stats_str}")
             
             # Get player action
             player_choice = self.get_player_action(player_active, opponent_active)

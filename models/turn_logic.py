@@ -1163,6 +1163,16 @@ class TurnManager:
             self._log(f"It's a one-hit KO!")
             return
         
+        # Yawn effect
+        if 'Yawn' in effect_name:
+            if not target.status:  # Only if target has no status condition
+                target.yawn = True
+                target.yawn_turns = 1  # Falls asleep next turn
+                self._log(f"{target.name} grew drowsy!")
+            else:
+                self._log(f"But it failed!")
+            return
+        
         # Protection effects
         if 'Protect' in effect_name:
             user.protected = True
