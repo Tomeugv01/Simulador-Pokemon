@@ -16,8 +16,12 @@ class PokemonDataManager:
         """Get database connection"""
         return self.db_manager.get_connection()
     
-    def initialize_pokemon_data(self):
-        """Insert all Pokémon, their learnsets, and evolution data"""
+    def initialize_pokemon_data(self, include_gen5_6=True):
+        """Insert all Pokémon, their learnsets, and evolution data
+        
+        Args:
+            include_gen5_6: If True, also inserts Gen 5-6 Pokemon (IDs 494-721)
+        """
         conn = self.get_connection()
         cursor = conn.cursor()
         
@@ -25,8 +29,13 @@ class PokemonDataManager:
         cursor.execute("PRAGMA foreign_keys = ON")
         
         # Insert all Pokémon
-        print("Inserting Pokémon data...")
+        print("Inserting Pokémon data (Gen 1-4)...")
         self._insert_pokemon(cursor)
+        
+        # Optionally insert Gen 5-6 Pokemon
+        if include_gen5_6:
+            print("Inserting Gen 5-6 Pokémon...")
+            self._insert_gen5_6_pokemon(cursor)
         
         # Insert learnsets
         print("Inserting pokemon learnsets...")
@@ -562,6 +571,31 @@ class PokemonDataManager:
         ''', pokemon_data)
         
         print(f"Successfully inserted {len(pokemon_data)} Pokemon (Gen 1-4)")
+    
+    def _insert_gen5_6_pokemon(self, cursor):
+        """Insert Gen 5-6 Pokemon (IDs 494-721) from exported file"""
+        import sys
+        import os
+        # Get the project root directory (parent of src)
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sys.path.insert(0, project_root)
+        from gen5_6_pokemon_export import GEN5_6_POKEMON
+        
+        # Convert data to exclude the 14th field (evolves_to_id) which doesn't exist in this table
+        # Evolution data is stored in pokemon_evolutions table instead
+        pokemon_data_converted = [
+            (id, name, type1, type2, hp, attack, defense, sp_atk, sp_def, speed, total, evo_level, exp_curve)
+            for id, name, type1, type2, hp, attack, defense, sp_atk, sp_def, speed, total, evo_level, exp_curve, _ in GEN5_6_POKEMON
+        ]
+        
+        # Insert Gen 5-6 Pokemon
+        cursor.executemany('''
+        INSERT INTO pokemon 
+        (id, name, type1, type2, hp, attack, defense, special_attack, special_defense, speed, total_stats, evolution_level, exp_curve)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', pokemon_data_converted)
+        
+        print(f"Successfully inserted {len(GEN5_6_POKEMON)} Gen 5-6 Pokemon")
     
     def _insert_pokemon_learnsets(self, cursor):
         """Insert pokemon learnset data from exported file"""
