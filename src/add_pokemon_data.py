@@ -17,20 +17,32 @@ class PokemonDataManager:
         return self.db_manager.get_connection()
     
     def initialize_pokemon_data(self):
-        """Insert all 151 Pokémon (table already created by DatabaseManager)"""
+        """Insert all Pokémon, their learnsets, and evolution data"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
         # Enable foreign keys
         cursor.execute("PRAGMA foreign_keys = ON")
         
-        # Insert all 151 Pokémon
+        # Insert all Pokémon
         print("Inserting Pokémon data...")
         self._insert_pokemon(cursor)
         
+        # Insert learnsets
+        print("Inserting pokemon learnsets...")
+        self._insert_pokemon_learnsets(cursor)
+        
+        # Insert evolutions
+        print("Inserting pokemon evolutions...")
+        self._insert_pokemon_evolutions(cursor)
+        
+        # Insert abilities
+        print("Inserting abilities...")
+        self._insert_abilities(cursor)
+        
         conn.commit()
         conn.close()
-        print("Pokemon data initialized successfully!")
+        print("✅ Pokemon data initialized successfully!")
 
     def _insert_pokemon(self, cursor):
         """Insert all Pokémon through Generation 4 with their statistics, evolution levels and exp curves"""
@@ -550,6 +562,107 @@ class PokemonDataManager:
         ''', pokemon_data)
         
         print(f"Successfully inserted {len(pokemon_data)} Pokemon (Gen 1-4)")
+    
+    def _insert_pokemon_learnsets(self, cursor):
+        """Insert pokemon learnset data from exported file"""
+        try:
+            # Import the exported data
+            import sys
+            import os
+            # Get the project root directory (parent of src)
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            sys.path.insert(0, project_root)
+            from pokemon_learnsets_export import POKEMON_LEARNSETS
+            
+            # Get valid pokemon IDs that exist in the database
+            cursor.execute("SELECT id FROM pokemon")
+            valid_pokemon_ids = set(row[0] for row in cursor.fetchall())
+            
+            # Filter learnsets to only include valid Pokemon
+            filtered_learnsets = [
+                entry for entry in POKEMON_LEARNSETS
+                if entry[0] in valid_pokemon_ids  # entry[0] is pokemon_id
+            ]
+            
+            skipped = len(POKEMON_LEARNSETS) - len(filtered_learnsets)
+            
+            cursor.executemany('''
+                INSERT INTO pokemon_learnsets (pokemon_id, move_id, learn_method, learn_level, form)
+                VALUES (?, ?, ?, ?, ?)
+            ''', filtered_learnsets)
+            print(f'✓ Inserted {len(filtered_learnsets)} pokemon learnset entries')
+            if skipped > 0:
+                print(f'  (Skipped {skipped} entries for Pokemon not in database)')
+        except ImportError as e:
+            print(f'⚠️  Warning: pokemon_learnsets_export.py not found in project root.')
+            print('   Learnsets table will be empty.')
+            print('   Run: py export_data.py to generate this file from existing database.')
+        except Exception as e:
+            print(f'✗ Error inserting learnsets: {e}')
+            raise
+
+    def _insert_pokemon_evolutions(self, cursor):
+        """Insert pokemon evolution data from exported file"""
+        try:
+            # Import the exported data
+            import sys
+            import os
+            # Get the project root directory (parent of src)
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            sys.path.insert(0, project_root)
+            from pokemon_evolutions_export import POKEMON_EVOLUTIONS
+            
+            # Get valid pokemon IDs that exist in the database
+            cursor.execute("SELECT id FROM pokemon")
+            valid_pokemon_ids = set(row[0] for row in cursor.fetchall())
+            
+            # Filter evolutions to only include valid Pokemon
+            # Note: evolves_to_id can be None, which is OK
+            filtered_evolutions = [
+                entry for entry in POKEMON_EVOLUTIONS
+                if entry[0] in valid_pokemon_ids and  # entry[0] is pokemon_id
+                (entry[1] is None or entry[1] in valid_pokemon_ids)  # entry[1] is evolves_to_id
+            ]
+            
+            skipped = len(POKEMON_EVOLUTIONS) - len(filtered_evolutions)
+            
+            cursor.executemany('''
+                INSERT INTO pokemon_evolutions (pokemon_id, evolves_to_id, evolution_level)
+                VALUES (?, ?, ?)
+            ''', filtered_evolutions)
+            print(f'✓ Inserted {len(filtered_evolutions)} pokemon evolution entries')
+            if skipped > 0:
+                print(f'  (Skipped {skipped} entries for Pokemon not in database)')
+        except ImportError as e:
+            print(f'⚠️  Warning: pokemon_evolutions_export.py not found in project root.')
+            print('   Evolutions table will be empty.')
+            print('   Run: py export_data.py to generate this file from existing database.')
+        except Exception as e:
+            print(f'✗ Error inserting evolutions: {e}')
+            raise
+    
+    def _insert_abilities(self, cursor):
+        """Insert abilities data from exported file"""
+        try:
+            # Import the exported data
+            import sys
+            import os
+            # Get the project root directory (parent of src)
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            sys.path.insert(0, project_root)
+            from abilities_data_export import ABILITIES
+            
+            cursor.executemany('''
+                INSERT INTO abilities (id, name, description, overworld_effect)
+                VALUES (?, ?, ?, ?)
+            ''', ABILITIES)
+            print(f'✓ Inserted {len(ABILITIES)} abilities')
+        except ImportError as e:
+            print(f'⚠️  Warning: abilities_data_export.py not found in project root.')
+            print('   Abilities table will be empty.')
+        except Exception as e:
+            print(f'✗ Error inserting abilities: {e}')
+            raise
 
 # Helper functions to interact with Pokémon data
 def get_all_pokemon():

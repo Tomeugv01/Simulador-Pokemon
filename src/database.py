@@ -57,7 +57,9 @@ class DatabaseManager:
         
         conn.commit()
         conn.close()
-        print("✅ Database initialized successfully!")
+        print("✅ Database structure initialized successfully!")
+        print("⚠️  Note: Pokemon, learnsets, and evolutions need to be added separately.")
+        print("   Run: pokemon_db = PokemonDataManager(); pokemon_db.initialize_pokemon_data()")
 
     def _create_tables(self, cursor):
         """Create all tables"""
@@ -140,6 +142,57 @@ class DatabaseManager:
             exp_curve TEXT NOT NULL CHECK(exp_curve IN ('fast', 'medium-fast', 'medium', 'medium-slow', 'slow', 'fluctuating')) DEFAULT 'medium-fast',
             FOREIGN KEY (type1) REFERENCES types(id),
             FOREIGN KEY (type2) REFERENCES types(id)
+        )
+        ''')
+        
+        # Create pokemon_learnsets table
+        cursor.execute('''
+        CREATE TABLE pokemon_learnsets (
+            id INTEGER PRIMARY KEY,
+            pokemon_id INTEGER NOT NULL,
+            move_id INTEGER NOT NULL,
+            learn_method TEXT NOT NULL,
+            learn_level INTEGER,
+            form INTEGER DEFAULT 0,
+            FOREIGN KEY (pokemon_id) REFERENCES pokemon(id) ON DELETE CASCADE,
+            FOREIGN KEY (move_id) REFERENCES moves(id) ON DELETE CASCADE
+        )
+        ''')
+        
+        # Create pokemon_evolutions table
+        cursor.execute('''
+        CREATE TABLE pokemon_evolutions (
+            id INTEGER PRIMARY KEY,
+            pokemon_id INTEGER,
+            evolves_to_id INTEGER,
+            evolution_level INTEGER,
+            FOREIGN KEY (pokemon_id) REFERENCES pokemon(id),
+            FOREIGN KEY (evolves_to_id) REFERENCES pokemon(id)
+        )
+        ''')
+        
+        # Create abilities table
+        cursor.execute('''
+        CREATE TABLE abilities (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT NOT NULL,
+            overworld_effect TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # Create pokemon_abilities junction table
+        cursor.execute('''
+        CREATE TABLE pokemon_abilities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pokemon_id INTEGER NOT NULL,
+            ability_id INTEGER NOT NULL,
+            is_hidden BOOLEAN DEFAULT FALSE,
+            slot INTEGER DEFAULT 1,
+            FOREIGN KEY (pokemon_id) REFERENCES pokemon(id) ON DELETE CASCADE,
+            FOREIGN KEY (ability_id) REFERENCES abilities(id) ON DELETE CASCADE,
+            UNIQUE (pokemon_id, ability_id)
         )
         ''')
 
@@ -1596,6 +1649,42 @@ class DatabaseManager:
         cursor.execute("SELECT id FROM move_effects WHERE name = ?", (effect_name,))
         result = cursor.fetchone()
         return result[0] if result else None
+
+    def _insert_pokemon_learnsets(self, cursor):
+        """Insert pokemon learnset data from exported file"""
+        try:
+            # Import the exported data
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+            from pokemon_learnsets_export import POKEMON_LEARNSETS
+            
+            cursor.executemany('''
+                INSERT INTO pokemon_learnsets (pokemon_id, move_id, learn_method, learn_level, form)
+                VALUES (?, ?, ?, ?, ?)
+            ''', POKEMON_LEARNSETS)
+            print(f'Inserted {len(POKEMON_LEARNSETS)} pokemon learnset entries')
+        except ImportError:
+            print('⚠️  Warning: pokemon_learnsets_export.py not found. Learnsets table will be empty.')
+            print('   Run: py export_data.py to generate this file from existing database.')
+
+    def _insert_pokemon_evolutions(self, cursor):
+        """Insert pokemon evolution data from exported file"""
+        try:
+            # Import the exported data
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+            from pokemon_evolutions_export import POKEMON_EVOLUTIONS
+            
+            cursor.executemany('''
+                INSERT INTO pokemon_evolutions (pokemon_id, evolves_to_id, evolution_level)
+                VALUES (?, ?, ?)
+            ''', POKEMON_EVOLUTIONS)
+            print(f'Inserted {len(POKEMON_EVOLUTIONS)} pokemon evolution entries')
+        except ImportError:
+            print('⚠️  Warning: pokemon_evolutions_export.py not found. Evolutions table will be empty.')
+            print('   Run: py export_data.py to generate this file from existing database.')
 
 def get_move_details(move_id):
     """Get complete move details with effects"""
