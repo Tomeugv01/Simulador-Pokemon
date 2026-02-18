@@ -15,11 +15,12 @@ from models.team_generation import TeamGenerator, TeamComposition, Archetype
 from models.cpu import CPUTrainer, AIFlag
 from models.turn_logic import TurnManager, BattleAction, ActionType
 from models.experience import ExperienceCurve
+from models.constants import get_type_name as _get_type_name_shared
 
 
 class PokemonGame:
     """Main game class for the Pokemon Battle Simulator"""
-    
+
     def __init__(self):
         self.generator = TeamGenerator()
         self.player_team = []
@@ -28,156 +29,9 @@ class PokemonGame:
         self.losses = 0
         self.game_over = False
         self.defeated_opponents = []  # Track defeated Pokemon for EXP calculation
-    
-    def start(self):
-        """Start the game"""
-        self.show_welcome_screen()
-        self.starter_selection()
-        
-        # Main game loop
-        while not self.game_over:
-            self.show_round_info()
-            
-            # Generate opponent
-            opponent_team = self.generate_opponent()
-            
-            # Battle
-            result_tuple = self.battle(opponent_team)
-            result = result_tuple[0]
-            defeated_opponents = result_tuple[1] if len(result_tuple) > 1 else []
-            
-            if result == 'win':
-                self.wins += 1
-                self.current_round += 1
-                
-                # Offer rewards (this will award EXP)
-                if not self.offer_rewards(defeated_opponents):
-                    break
-            else:
-                self.losses += 1
-                self.game_over = True
-                self.show_game_over()
-                break
-        
-        print("\n" + "="*70)
-        print("Thanks for playing!")
-        print(f"Final Stats: {self.wins} Wins, {self.losses} Losses")
-        print("="*70)
-    
-    def show_welcome_screen(self):
-        """Display welcome screen"""
-        print("\n" + "="*70)
-        print(" "*15 + "POKEMON BATTLE SIMULATOR")
-        print(" "*20 + "Roguelike Edition")
-        print("="*70)
-        print("\nWelcome, Trainer!")
-        print("\nIn this roguelike adventure, you'll:")
-        print("  - Choose a team of 3 starter Pokemon")
-        print("  - Battle increasingly difficult opponents")
-        print("  - Earn rewards and strengthen your team")
-        print("  - Try to defeat as many trainers as possible!")
-        print("\nThe challenge increases with each victory.")
-        print("One loss and your run is over. Good luck!")
-        print("="*70)
-        input("\nPress Enter to begin...")
-    
-    def starter_selection(self):
-        """Let player choose their starter team"""
-        print("\n" + "="*70)
-        print("STARTER SELECTION")
-        print("="*70)
-        print("\nChoose ONE Pokemon from each of the 3 groups below.")
-        print("These will form your starting team.\n")
-        
-        starter_choices = self.generator.generate_starter_choices()
-        
-        for set_num, choice_set in enumerate(starter_choices, 1):
-            print(f"\n{'='*70}")
-            print(f"GROUP {set_num} - Choose ONE:")
-            print("="*70)
-            
-            for i, pokemon in enumerate(choice_set, 1):
-                tsb = self.generator.calculate_tsb(self.generator._pokemon_to_data(pokemon))
-                pokemon_data = self.generator.pokemon_repo.get_by_id(pokemon.id)
-                archetypes = self.generator._determine_archetypes(pokemon_data)
-                archetype_str = ', '.join(a.value.replace('_', ' ').title() for a in archetypes[:2])
-                
-                print(f"\n{i}. {pokemon.name}")
-                print(f"   Level: {pokemon.level} | TSB: {tsb} | Type: {self._get_type_name(pokemon_data['type1'])}", end="")
-                if pokemon_data.get('type2'):
-                    print(f"/{self._get_type_name(pokemon_data['type2'])}", end="")
-                print(f"\n   Role: {archetype_str}")
-                print(f"   HP: {pokemon.max_hp} | Atk: {pokemon.attack} | Def: {pokemon.defense}")
-                print(f"   SpA: {pokemon.sp_attack} | SpD: {pokemon.sp_defense} | Spe: {pokemon.speed}")
-                print(f"   Moves: {', '.join(m['name'] for m in pokemon.moves[:4])}")
-            
-            while True:
-                try:
-                    choice = input(f"\nSelect Pokemon (1-{len(choice_set)}): ").strip()
-                    choice_idx = int(choice) - 1
-                    if 0 <= choice_idx < len(choice_set):
-                        chosen = choice_set[choice_idx]
-                        self.player_team.append(chosen)
-                        print(f"\nYou chose {chosen.name}!")
-                        break
-                    else:
-                        print("Invalid choice. Try again.")
-                except (ValueError, KeyboardInterrupt):
-                    print("Invalid input. Try again.")
-        
-        print("\n" + "="*70)
-        print("YOUR STARTING TEAM")
-        print("="*70)
-        self.display_team(self.player_team)
-        input("\nPress Enter to begin your journey...")
-    
-    def show_round_info(self):
-        """Display current round information"""
-        print("\n" + "="*70)
-        print(f"ROUND {self.current_round}")
-        print("="*70)
-        print(f"Wins: {self.wins} | Current Streak: {self.wins}")
-        
-        # Show team status
-        print("\nYour Team:")
-        for i, pokemon in enumerate(self.player_team, 1):
-            status = "OK" if pokemon.current_hp > pokemon.max_hp * 0.5 else "Injured" if pokemon.current_hp > 0 else "Fainted"
-            print(f"  {i}. {pokemon.name} (Lv.{pokemon.level}) - HP: {pokemon.current_hp}/{pokemon.max_hp} ({status})")
-        
-        input("\nPress Enter to face your opponent...")
-    
-    def generate_opponent(self):
-        """Generate opponent team for current round"""
-        print("\n" + "="*70)
-        print("OPPONENT APPROACHING...")
-        print("="*70)
-        
-        # Determine team size based on round
-        team_size = min(3 + (self.current_round // 3), 6)
-        
-        # Calculate player average level
-        total_levels = sum(p.level for p in self.player_team)
-        avg_level = max(5, total_levels // max(1, len(self.player_team)))
-        
-        # Generate opponent team
-        opponent_team = self.generator.generate_opponent_team(
-            round_number=self.current_round,
-            team_size=team_size,
-            composition=random.choice(list(TeamComposition)),
-            player_average_level=avg_level
-        )
-        
-        # Display opponent team
-        summary = self.generator.get_team_summary(opponent_team)
-        print(f"\nOpponent has {len(opponent_team)} Pokemon!")
-        print(f"Average Level: {summary['avg_level']} | Average TSB: {summary['avg_tsb']}")
-        print("\nOpponent's Team:")
-        for i, pokemon in enumerate(opponent_team, 1):
-            pokemon_data = self.generator.pokemon_repo.get_by_id(pokemon.id)
-            print(f"  {i}. {pokemon.name} (Lv.{pokemon.level}) - ???")
-        
-        return opponent_team
-    
+
+    # *** PUBLIC ***
+
     def battle(self, opponent_team):
         """Execute a battle between player and opponent"""
         print("\n" + "="*70)
@@ -190,6 +44,12 @@ class PokemonGame:
         # Initialize battle state
         player_active = self.player_team[0]
         opponent_active = opponent_team[0]
+        
+        # Initialize turns_active for starting Pokemon
+        if hasattr(player_active, 'turns_active'):
+            player_active.turns_active = 0
+        if hasattr(opponent_active, 'turns_active'):
+            opponent_active.turns_active = 0
         
         # Create CPU AI
         difficulty = "easy" if self.current_round <= 2 else "normal" if self.current_round <= 5 else "hard"
@@ -304,39 +164,7 @@ class PokemonGame:
                 battle_state['player1_active'] = player_active
             
             input("\nPress Enter to continue...")
-    
-    def get_player_action(self, player_pokemon, opponent_pokemon):
-        """Get player's chosen action"""
-        while True:
-            print("\n" + "-"*70)
-            print("What will you do?")
-            print("-"*70)
-            print("1. Fight")
-            print("2. Switch Pokemon")
-            print("3. Forfeit")
-            
-            try:
-                choice = input("\nChoice (1-3): ").strip()
-                
-                if choice == '1':
-                    # Choose move
-                    move = self.choose_move(player_pokemon)
-                    if move is not None:
-                        return move
-                    # If move is None (pressed 'b'), loop back to main menu
-                elif choice == '2':
-                    # Switch Pokemon
-                    switch_result = self.choose_switch()
-                    if switch_result is not None:
-                        return switch_result
-                    # If switch_result is None (pressed 'b'), loop back to main menu
-                elif choice == '3':
-                    return None
-                else:
-                    print("Invalid choice. Try again.")
-            except (ValueError, KeyboardInterrupt):
-                print("Invalid input. Try again.")
-    
+
     def choose_move(self, pokemon):
         """Let player choose a move"""
         print("\n" + "-"*70)
@@ -361,7 +189,7 @@ class PokemonGame:
                     print("Invalid choice. Try again.")
             except (ValueError, KeyboardInterrupt):
                 print("Invalid input. Try again.")
-    
+
     def choose_switch(self):
         """Let player choose which Pokemon to switch to"""
         if len(self.player_team) <= 1:
@@ -393,7 +221,45 @@ class PokemonGame:
                     print("Invalid choice. Try again.")
             except (ValueError, KeyboardInterrupt):
                 print("Invalid input. Try again.")
-    
+
+    def display_team(self, team):
+        """Display team information"""
+        for i, pokemon in enumerate(team, 1):
+            status = "Fainted" if pokemon.current_hp <= 0 else f"{pokemon.current_hp}/{pokemon.max_hp} HP"
+            print(f"  {i}. {pokemon.name} (Lv.{pokemon.level}) - {status}")
+
+    def execute_turn(self, turn_manager, battle_state, player_action, cpu_action):
+        """Execute a turn using TurnManager (database-driven)
+        Returns tuple: (player_still_active, opponent_still_active)"""
+        
+        # Handle player switch
+        if player_action.action_type == ActionType.SWITCH:
+            old_pokemon = battle_state['player1_active']
+            new_pokemon = player_action.target
+            print(f"\nYou switched to {new_pokemon.name}!")
+            # Reset turns_active for incoming Pokemon
+            if hasattr(new_pokemon, 'turns_active'):
+                new_pokemon.turns_active = 0
+            battle_state['player1_active'] = new_pokemon
+            # Update player_team order
+            self.player_team.remove(new_pokemon)
+            self.player_team.insert(0, new_pokemon)
+            return (new_pokemon.current_hp > 0, battle_state['player2_active'].current_hp > 0)
+        
+        # Execute turn through TurnManager (handles all move logic via database)
+        turn_result = turn_manager.execute_turn([player_action, cpu_action])
+        
+        # Display turn results from turn log
+        for message in turn_result['turn_log']:
+            # Skip empty messages
+            if message.strip():
+                print(f"  {message}")
+        
+        player_alive = battle_state['player1_active'].current_hp > 0
+        opponent_alive = battle_state['player2_active'].current_hp > 0
+        
+        return (player_alive, opponent_alive)
+
     def force_switch(self, exclude=None):
         """Force player to switch after a faint or forced switch move
         
@@ -448,139 +314,71 @@ class PokemonGame:
                     print("Invalid choice. Try again.")
             except (ValueError, KeyboardInterrupt):
                 print("Invalid input. Try again.")
-    
-    def execute_turn(self, turn_manager, battle_state, player_action, cpu_action):
-        """Execute a turn using TurnManager (database-driven)
-        Returns tuple: (player_still_active, opponent_still_active)"""
-        
-        # Handle player switch
-        if player_action.action_type == ActionType.SWITCH:
-            old_pokemon = battle_state['player1_active']
-            new_pokemon = player_action.target
-            print(f"\nYou switched to {new_pokemon.name}!")
-            battle_state['player1_active'] = new_pokemon
-            # Update player_team order
-            self.player_team.remove(new_pokemon)
-            self.player_team.insert(0, new_pokemon)
-            return (new_pokemon.current_hp > 0, battle_state['player2_active'].current_hp > 0)
-        
-        # Execute turn through TurnManager (handles all move logic via database)
-        turn_result = turn_manager.execute_turn([player_action, cpu_action])
-        
-        # Display turn results from turn log
-        for message in turn_result['turn_log']:
-            # Skip empty messages
-            if message.strip():
-                print(f"  {message}")
-        
-        player_alive = battle_state['player1_active'].current_hp > 0
-        opponent_alive = battle_state['player2_active'].current_hp > 0
-        
-        return (player_alive, opponent_alive)
-    
 
-    def teach_move_to_team(self):
-        """Allow player to teach a new move to one of their Pokemon"""
+    def generate_opponent(self):
+        """Generate opponent team for current round"""
         print("\n" + "="*70)
-        print("MOVE TUTOR")
+        print("OPPONENT APPROACHING...")
         print("="*70)
-        print("\nSelect a Pokemon to teach a new move:")
         
-        # Show team
-        for i, pokemon in enumerate(self.player_team, 1):
-            print(f"{i}. {pokemon.name} (Lv.{pokemon.level})")
+        # Determine team size based on round
+        team_size = min(3 + (self.current_round // 3), 6)
         
-        print(f"{len(self.player_team) + 1}. Cancel")
+        # Calculate player average level
+        total_levels = sum(p.level for p in self.player_team)
+        avg_level = max(5, total_levels // max(1, len(self.player_team)))
         
-        while True:
-            try:
-                choice = input(f"\nChoice (1-{len(self.player_team) + 1}): ").strip()
-                choice_idx = int(choice) - 1
-                
-                if choice_idx == len(self.player_team):
-                    print("Cancelled move learning.")
-                    return
-                
-                if 0 <= choice_idx < len(self.player_team):
-                    selected_pokemon = self.player_team[choice_idx]
-                    break
-                else:
-                    print("Invalid choice. Try again.")
-            except (ValueError, KeyboardInterrupt):
-                print("Invalid input. Try again.")
-        
-        # Get filtered moves for this Pokemon
-        print(f"\n{selected_pokemon.name}'s current moves:")
-        for i, move in enumerate(selected_pokemon.moves, 1):
-            print(f"  {i}. {move.name} ({move.type}, {move.category}) - Power: {move.power or 'N/A'}")
-        
-        # Get available moves
-        available_moves = self.generator.get_filtered_moves_for_learning(
-            selected_pokemon,
-            respect_power_cap=True
+        # Generate opponent team
+        opponent_team = self.generator.generate_opponent_team(
+            round_number=self.current_round,
+            team_size=team_size,
+            composition=random.choice(list(TeamComposition)),
+            player_average_level=avg_level
         )
         
-        if not available_moves:
-            print(f"\nNo new moves available for {selected_pokemon.name} at this level!")
-            return
+        # Display opponent team
+        summary = self.generator.get_team_summary(opponent_team)
+        print(f"\nOpponent has {len(opponent_team)} Pokemon!")
+        print(f"Average Level: {summary['avg_level']} | Average TSB: {summary['avg_tsb']}")
+        print("\nOpponent's Team:")
+        for i, pokemon in enumerate(opponent_team, 1):
+            pokemon_data = self.generator.pokemon_repo.get_by_id(pokemon.id)
+            print(f"  {i}. {pokemon.name} (Lv.{pokemon.level}) - ???")
         
-        print(f"\nAvailable moves for {selected_pokemon.name}:")
-        print("-"*70)
-        
-        # Show up to 10 moves
-        display_moves = available_moves[:10]
-        for i, move in enumerate(display_moves, 1):
-            power_str = f"Power: {move['power']}" if move['power'] else "Status"
-            print(f"{i}. {move['name']} ({move['type']}, {move['category']}) - {power_str}")
-        
-        print(f"{len(display_moves) + 1}. Cancel")
-        
+        return opponent_team
+
+    def get_player_action(self, player_pokemon, opponent_pokemon):
+        """Get player's chosen action"""
         while True:
+            print("\n" + "-"*70)
+            print("What will you do?")
+            print("-"*70)
+            print("1. Fight")
+            print("2. Switch Pokemon")
+            print("3. Forfeit")
+            
             try:
-                choice = input(f"\nSelect move to learn (1-{len(display_moves) + 1}): ").strip()
-                move_idx = int(choice) - 1
+                choice = input("\nChoice (1-3): ").strip()
                 
-                if move_idx == len(display_moves):
-                    print("Cancelled move learning.")
-                    return
-                
-                if 0 <= move_idx < len(display_moves):
-                    new_move = display_moves[move_idx]
-                    break
+                if choice == '1':
+                    # Choose move
+                    move = self.choose_move(player_pokemon)
+                    if move is not None:
+                        return move
+                    # If move is None (pressed 'b'), loop back to main menu
+                elif choice == '2':
+                    # Switch Pokemon
+                    switch_result = self.choose_switch()
+                    if switch_result is not None:
+                        return switch_result
+                    # If switch_result is None (pressed 'b'), loop back to main menu
+                elif choice == '3':
+                    return None
                 else:
                     print("Invalid choice. Try again.")
             except (ValueError, KeyboardInterrupt):
                 print("Invalid input. Try again.")
-        
-        # If Pokemon has 4 moves, ask which to replace
-        if len(selected_pokemon.moves) >= 4:
-            print(f"\n{selected_pokemon.name} already knows 4 moves. Which move should be forgotten?")
-            for i, move in enumerate(selected_pokemon.moves, 1):
-                print(f"{i}. {move.name}")
-            print(f"{len(selected_pokemon.moves) + 1}. Cancel")
-            
-            while True:
-                try:
-                    choice = input(f"\nReplace which move? (1-{len(selected_pokemon.moves) + 1}): ").strip()
-                    replace_idx = int(choice) - 1
-                    
-                    if replace_idx == len(selected_pokemon.moves):
-                        print(f"{selected_pokemon.name} did not learn {new_move['name']}.")
-                        return
-                    
-                    if 0 <= replace_idx < len(selected_pokemon.moves):
-                        break
-                    else:
-                        print("Invalid choice. Try again.")
-                except (ValueError, KeyboardInterrupt):
-                    print("Invalid input. Try again.")
-        else:
-            replace_idx = len(selected_pokemon.moves)  # Add to end
-        
-        # Teach the move
-        self.generator.teach_move_to_pokemon(selected_pokemon, new_move, replace_idx)
-        print(f"\n{selected_pokemon.name} learned {new_move['name']}!")
-    
+
     def offer_rewards(self, defeated_opponents):
         """Offer rewards after winning a battle"""
         print("\n" + "="*70)
@@ -779,7 +577,8 @@ class PokemonGame:
                     print("Invalid choice. Try again.")
             except (ValueError, KeyboardInterrupt):
                 print("Invalid input. Try again.")
-    
+    # region Display
+
     def show_game_over(self):
         """Show game over screen"""
         print("\n" + "="*70)
@@ -788,22 +587,233 @@ class PokemonGame:
         print(f"\nYou defeated {self.wins} trainer(s) before falling in battle.")
         print("\nYour final team:")
         self.display_team(self.player_team)
-    
-    def display_team(self, team):
-        """Display team information"""
-        for i, pokemon in enumerate(team, 1):
-            status = "Fainted" if pokemon.current_hp <= 0 else f"{pokemon.current_hp}/{pokemon.max_hp} HP"
-            print(f"  {i}. {pokemon.name} (Lv.{pokemon.level}) - {status}")
-    
+
+    def show_round_info(self):
+        """Display current round information"""
+        print("\n" + "="*70)
+        print(f"ROUND {self.current_round}")
+        print("="*70)
+        print(f"Wins: {self.wins} | Current Streak: {self.wins}")
+        
+        # Show team status
+        print("\nYour Team:")
+        for i, pokemon in enumerate(self.player_team, 1):
+            status = "OK" if pokemon.current_hp > pokemon.max_hp * 0.5 else "Injured" if pokemon.current_hp > 0 else "Fainted"
+            print(f"  {i}. {pokemon.name} (Lv.{pokemon.level}) - HP: {pokemon.current_hp}/{pokemon.max_hp} ({status})")
+        
+        input("\nPress Enter to face your opponent...")
+
+    def show_welcome_screen(self):
+        """Display welcome screen"""
+        print("\n" + "="*70)
+        print(" "*15 + "POKEMON BATTLE SIMULATOR")
+        print(" "*20 + "Roguelike Edition")
+        print("="*70)
+        print("\nWelcome, Trainer!")
+        print("\nIn this roguelike adventure, you'll:")
+        print("  - Choose a team of 3 starter Pokemon")
+        print("  - Battle increasingly difficult opponents")
+        print("  - Earn rewards and strengthen your team")
+        print("  - Try to defeat as many trainers as possible!")
+        print("\nThe challenge increases with each victory.")
+        print("One loss and your run is over. Good luck!")
+        print("="*70)
+        input("\nPress Enter to begin...")
+
+    # endregion Display
+
+    def start(self):
+        """Start the game"""
+        self.show_welcome_screen()
+        self.starter_selection()
+        
+        # Main game loop
+        while not self.game_over:
+            self.show_round_info()
+            
+            # Generate opponent
+            opponent_team = self.generate_opponent()
+            
+            # Battle
+            result_tuple = self.battle(opponent_team)
+            result = result_tuple[0]
+            defeated_opponents = result_tuple[1] if len(result_tuple) > 1 else []
+            
+            if result == 'win':
+                self.wins += 1
+                self.current_round += 1
+                
+                # Offer rewards (this will award EXP)
+                if not self.offer_rewards(defeated_opponents):
+                    break
+            else:
+                self.losses += 1
+                self.game_over = True
+                self.show_game_over()
+                break
+        
+        print("\n" + "="*70)
+        print("Thanks for playing!")
+        print(f"Final Stats: {self.wins} Wins, {self.losses} Losses")
+        print("="*70)
+
+    def starter_selection(self):
+        """Let player choose their starter team"""
+        print("\n" + "="*70)
+        print("STARTER SELECTION")
+        print("="*70)
+        print("\nChoose ONE Pokemon from each of the 3 groups below.")
+        print("These will form your starting team.\n")
+        
+        starter_choices = self.generator.generate_starter_choices()
+        
+        for set_num, choice_set in enumerate(starter_choices, 1):
+            print(f"\n{'='*70}")
+            print(f"GROUP {set_num} - Choose ONE:")
+            print("="*70)
+            
+            for i, pokemon in enumerate(choice_set, 1):
+                tsb = self.generator.calculate_tsb(self.generator._pokemon_to_data(pokemon))
+                pokemon_data = self.generator.pokemon_repo.get_by_id(pokemon.id)
+                archetypes = self.generator._determine_archetypes(pokemon_data)
+                archetype_str = ', '.join(a.value.replace('_', ' ').title() for a in archetypes[:2])
+                
+                print(f"\n{i}. {pokemon.name}")
+                print(f"   Level: {pokemon.level} | TSB: {tsb} | Type: {self._get_type_name(pokemon_data['type1'])}", end="")
+                if pokemon_data.get('type2'):
+                    print(f"/{self._get_type_name(pokemon_data['type2'])}", end="")
+                print(f"\n   Role: {archetype_str}")
+                print(f"   HP: {pokemon.max_hp} | Atk: {pokemon.attack} | Def: {pokemon.defense}")
+                print(f"   SpA: {pokemon.sp_attack} | SpD: {pokemon.sp_defense} | Spe: {pokemon.speed}")
+                print(f"   Moves: {', '.join(m['name'] for m in pokemon.moves[:4])}")
+            
+            while True:
+                try:
+                    choice = input(f"\nSelect Pokemon (1-{len(choice_set)}): ").strip()
+                    choice_idx = int(choice) - 1
+                    if 0 <= choice_idx < len(choice_set):
+                        chosen = choice_set[choice_idx]
+                        self.player_team.append(chosen)
+                        print(f"\nYou chose {chosen.name}!")
+                        break
+                    else:
+                        print("Invalid choice. Try again.")
+                except (ValueError, KeyboardInterrupt):
+                    print("Invalid input. Try again.")
+        
+        print("\n" + "="*70)
+        print("YOUR STARTING TEAM")
+        print("="*70)
+        self.display_team(self.player_team)
+        input("\nPress Enter to begin your journey...")
+
+    def teach_move_to_team(self):
+        """Allow player to teach a new move to one of their Pokemon"""
+        print("\n" + "="*70)
+        print("MOVE TUTOR")
+        print("="*70)
+        print("\nSelect a Pokemon to teach a new move:")
+        
+        # Show team
+        for i, pokemon in enumerate(self.player_team, 1):
+            print(f"{i}. {pokemon.name} (Lv.{pokemon.level})")
+        
+        print(f"{len(self.player_team) + 1}. Cancel")
+        
+        while True:
+            try:
+                choice = input(f"\nChoice (1-{len(self.player_team) + 1}): ").strip()
+                choice_idx = int(choice) - 1
+                
+                if choice_idx == len(self.player_team):
+                    print("Cancelled move learning.")
+                    return
+                
+                if 0 <= choice_idx < len(self.player_team):
+                    selected_pokemon = self.player_team[choice_idx]
+                    break
+                else:
+                    print("Invalid choice. Try again.")
+            except (ValueError, KeyboardInterrupt):
+                print("Invalid input. Try again.")
+        
+        # Get filtered moves for this Pokemon
+        print(f"\n{selected_pokemon.name}'s current moves:")
+        for i, move in enumerate(selected_pokemon.moves, 1):
+            print(f"  {i}. {move.name} ({move.type}, {move.category}) - Power: {move.power or 'N/A'}")
+        
+        # Get available moves
+        available_moves = self.generator.get_filtered_moves_for_learning(
+            selected_pokemon,
+            respect_power_cap=True
+        )
+        
+        if not available_moves:
+            print(f"\nNo new moves available for {selected_pokemon.name} at this level!")
+            return
+        
+        print(f"\nAvailable moves for {selected_pokemon.name}:")
+        print("-"*70)
+        
+        # Show up to 10 moves
+        display_moves = available_moves[:10]
+        for i, move in enumerate(display_moves, 1):
+            power_str = f"Power: {move['power']}" if move['power'] else "Status"
+            print(f"{i}. {move['name']} ({move['type']}, {move['category']}) - {power_str}")
+        
+        print(f"{len(display_moves) + 1}. Cancel")
+        
+        while True:
+            try:
+                choice = input(f"\nSelect move to learn (1-{len(display_moves) + 1}): ").strip()
+                move_idx = int(choice) - 1
+                
+                if move_idx == len(display_moves):
+                    print("Cancelled move learning.")
+                    return
+                
+                if 0 <= move_idx < len(display_moves):
+                    new_move = display_moves[move_idx]
+                    break
+                else:
+                    print("Invalid choice. Try again.")
+            except (ValueError, KeyboardInterrupt):
+                print("Invalid input. Try again.")
+        
+        # If Pokemon has 4 moves, ask which to replace
+        if len(selected_pokemon.moves) >= 4:
+            print(f"\n{selected_pokemon.name} already knows 4 moves. Which move should be forgotten?")
+            for i, move in enumerate(selected_pokemon.moves, 1):
+                print(f"{i}. {move.name}")
+            print(f"{len(selected_pokemon.moves) + 1}. Cancel")
+            
+            while True:
+                try:
+                    choice = input(f"\nReplace which move? (1-{len(selected_pokemon.moves) + 1}): ").strip()
+                    replace_idx = int(choice) - 1
+                    
+                    if replace_idx == len(selected_pokemon.moves):
+                        print(f"{selected_pokemon.name} did not learn {new_move['name']}.")
+                        return
+                    
+                    if 0 <= replace_idx < len(selected_pokemon.moves):
+                        break
+                    else:
+                        print("Invalid choice. Try again.")
+                except (ValueError, KeyboardInterrupt):
+                    print("Invalid input. Try again.")
+        else:
+            replace_idx = len(selected_pokemon.moves)  # Add to end
+        
+        # Teach the move
+        self.generator.teach_move_to_pokemon(selected_pokemon, new_move, replace_idx)
+        print(f"\n{selected_pokemon.name} learned {new_move['name']}!")
+
+    # *** PRIVATE ***
+
     def _get_type_name(self, type_id):
         """Convert type ID to name"""
-        type_map = {
-            1: 'Normal', 2: 'Fire', 3: 'Water', 4: 'Electric', 5: 'Grass',
-            6: 'Ice', 7: 'Fighting', 8: 'Poison', 9: 'Ground', 10: 'Flying',
-            11: 'Psychic', 12: 'Bug', 13: 'Rock', 14: 'Ghost', 15: 'Dragon',
-            16: 'Dark', 17: 'Steel', 18: 'Fairy'
-        }
-        return type_map.get(type_id, 'Unknown')
+        return _get_type_name_shared(type_id)
 
 
 def main():

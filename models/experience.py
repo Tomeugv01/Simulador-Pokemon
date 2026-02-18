@@ -10,96 +10,9 @@ class ExperienceCurve:
     Pokemon experience growth curves.
     Each curve determines how much EXP is needed to reach each level.
     """
-    
-    @staticmethod
-    def exp_for_level(level: int, curve: str) -> int:
-        """
-        Calculate total EXP required to reach a given level.
-        
-        Args:
-            level: Target level (1-100)
-            curve: Growth curve name ('fast', 'medium-fast', 'medium-slow', 'slow', 'fluctuating')
-            
-        Returns:
-            Total EXP required to reach that level
-        """
-        if level <= 1:
-            return 0
-        
-        n = level
-        
-        if curve == 'fast':
-            # Fast: 0.8 * n^3
-            return int(0.8 * (n ** 3))
-        
-        elif curve == 'medium-fast':
-            # Medium Fast: n^3
-            return n ** 3
-        
-        elif curve == 'medium-slow':
-            # Medium Slow: 1.2 * n^3 - 15 * n^2 + 100 * n - 140
-            return int(1.2 * (n ** 3) - 15 * (n ** 2) + 100 * n - 140)
-        
-        elif curve == 'slow':
-            # Slow: 1.25 * n^3
-            return int(1.25 * (n ** 3))
-        
-        elif curve == 'fluctuating':
-            # Fluctuating: Complex piecewise function
-            if n <= 15:
-                return int(n ** 3 * ((((n + 1) // 3) + 24) / 50))
-            elif n <= 36:
-                return int(n ** 3 * ((n + 14) / 50))
-            else:
-                return int(n ** 3 * (((n // 2) + 32) / 50))
-        
-        else:
-            # Default to medium-fast if unknown
-            return n ** 3
-    
-    @staticmethod
-    def exp_to_next_level(current_level: int, curve: str) -> int:
-        """
-        Calculate EXP needed to go from current level to next level.
-        
-        Args:
-            current_level: Current level (1-99)
-            curve: Growth curve name
-            
-        Returns:
-            EXP needed for next level
-        """
-        if current_level >= 100:
-            return 0
-        
-        current_exp = ExperienceCurve.exp_for_level(current_level, curve)
-        next_exp = ExperienceCurve.exp_for_level(current_level + 1, curve)
-        return next_exp - current_exp
-    
-    @staticmethod
-    def level_from_exp(total_exp: int, curve: str) -> int:
-        """
-        Determine level based on total EXP.
-        
-        Args:
-            total_exp: Total accumulated EXP
-            curve: Growth curve name
-            
-        Returns:
-            Current level (1-100)
-        """
-        # Binary search for efficiency
-        low, high = 1, 100
-        
-        while low < high:
-            mid = (low + high + 1) // 2
-            if ExperienceCurve.exp_for_level(mid, curve) <= total_exp:
-                low = mid
-            else:
-                high = mid - 1
-        
-        return low
-    
+
+    # *** PUBLIC STATIC ***
+
     @staticmethod
     def calculate_exp_gain(defeated_pokemon, winner_level: int, is_wild: bool = False, 
                           is_trainer: bool = True, participated: bool = True,
@@ -148,7 +61,72 @@ class ExperienceCurve:
             exp_gain = int(exp_gain * (1.0 - reduction))
         
         return max(1, exp_gain)  # Minimum 1 EXP
-    
+
+    @staticmethod
+    def exp_for_level(level: int, curve: str) -> int:
+        """
+        Calculate total EXP required to reach a given level.
+        
+        Args:
+            level: Target level (1-100)
+            curve: Growth curve name ('fast', 'medium-fast', 'medium-slow', 'slow', 'fluctuating')
+            
+        Returns:
+            Total EXP required to reach that level
+        """
+        if level <= 1:
+            return 0
+        
+        n = level
+        
+        if curve == 'fast':
+            # Fast: 0.8 * n^3
+            return int(0.8 * (n ** 3))
+        
+        elif curve == 'medium-fast':
+            # Medium Fast: n^3
+            return n ** 3
+        
+        elif curve == 'medium-slow':
+            # Medium Slow: 1.2 * n^3 - 15 * n^2 + 100 * n - 140
+            return int(1.2 * (n ** 3) - 15 * (n ** 2) + 100 * n - 140)
+        
+        elif curve == 'slow':
+            # Slow: 1.25 * n^3
+            return int(1.25 * (n ** 3))
+        
+        elif curve == 'fluctuating':
+            # Fluctuating: Complex piecewise function
+            if n <= 15:
+                return int(n ** 3 * ((((n + 1) // 3) + 24) / 50))
+            elif n <= 36:
+                return int(n ** 3 * ((n + 14) / 50))
+            else:
+                return int(n ** 3 * (((n // 2) + 32) / 50))
+        
+        else:
+            # Default to medium-fast if unknown
+            return n ** 3
+
+    @staticmethod
+    def exp_to_next_level(current_level: int, curve: str) -> int:
+        """
+        Calculate EXP needed to go from current level to next level.
+        
+        Args:
+            current_level: Current level (1-99)
+            curve: Growth curve name
+            
+        Returns:
+            EXP needed for next level
+        """
+        if current_level >= 100:
+            return 0
+        
+        current_exp = ExperienceCurve.exp_for_level(current_level, curve)
+        next_exp = ExperienceCurve.exp_for_level(current_level + 1, curve)
+        return next_exp - current_exp
+
     @staticmethod
     def get_curve_multiplier(curve: str) -> float:
         """
@@ -168,7 +146,31 @@ class ExperienceCurve:
         
         # Return ratio (how much faster/slower)
         return curve_exp / medium_fast_exp
-    
+
+    @staticmethod
+    def level_from_exp(total_exp: int, curve: str) -> int:
+        """
+        Determine level based on total EXP.
+        
+        Args:
+            total_exp: Total accumulated EXP
+            curve: Growth curve name
+            
+        Returns:
+            Current level (1-100)
+        """
+        # Binary search for efficiency
+        low, high = 1, 100
+        
+        while low < high:
+            mid = (low + high + 1) // 2
+            if ExperienceCurve.exp_for_level(mid, curve) <= total_exp:
+                low = mid
+            else:
+                high = mid - 1
+        
+        return low
+
     @staticmethod
     def scale_level_for_curve(base_level: int, curve: str) -> int:
         """

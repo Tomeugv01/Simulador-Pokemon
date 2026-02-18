@@ -14,15 +14,8 @@ try:
     from src.repositories import PokemonRepository, MoveRepository
     from src.database import get_moves_at_level
 except ImportError:
-    # Try alternative import path
-    try:
-        from repositories import PokemonRepository, MoveRepository
-        from database import get_moves_at_level
-    except ImportError:
-        import sys
-        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-        from repositories import PokemonRepository, MoveRepository
-        from database import get_moves_at_level
+    from repositories import PokemonRepository, MoveRepository
+    from database import get_moves_at_level
 
 try:
     from Move import Move
@@ -34,6 +27,11 @@ try:
 except ImportError:
     from models.experience import ExperienceCurve
 
+try:
+    from constants import TYPE_NAMES as _TYPE_NAMES, get_type_name as _get_type_name
+except ImportError:
+    from models.constants import TYPE_NAMES as _TYPE_NAMES, get_type_name as _get_type_name
+
 
 class Pokemon:
     """
@@ -41,74 +39,10 @@ class Pokemon:
     Handles stats calculation, HP management, status conditions, and stat stages.
     """
     
-    # Type ID to name mapping
-    TYPE_NAMES = {
-        1: 'Normal', 2: 'Fire', 3: 'Water', 4: 'Electric', 5: 'Grass',
-        6: 'Ice', 7: 'Fighting', 8: 'Poison', 9: 'Ground', 10: 'Flying',
-        11: 'Psychic', 12: 'Bug', 13: 'Rock', 14: 'Ghost', 15: 'Dragon',
-        16: 'Dark', 17: 'Steel', 18: 'Fairy'
-    }
-    
-    @staticmethod
-    def get_type_name(type_id):
-        """Convert type ID to type name"""
-        if isinstance(type_id, str):
-            return type_id  # Already a name
-        return Pokemon.TYPE_NAMES.get(type_id, 'Unknown')
-    
-    @staticmethod
-    def generate_ivs(round_number=None, is_starter=False):
-        """
-        Generate random IVs based on game progress or starter status.
-        
-        Args:
-            round_number (int): Current game round (affects average IV quality)
-            is_starter (bool): If True, biases IVs to be much higher
-            
-        Returns:
-            dict: Dictionary of IVs {'hp': x, 'attack': y, ...}
-        """
-        import random
-        
-        ivs = {}
-        stats = ['hp', 'attack', 'defense', 'sp_attack', 'sp_defense', 'speed']
-        
-        if is_starter:
-            # Starters get biased rolls: Max 31 is guaranteed in 3 stats
-            # The rest are rolled relatively high (15-31)
-            guaranteed_max = random.sample(stats, 3)
-            for stat in stats:
-                if stat in guaranteed_max:
-                    ivs[stat] = 31
-                else:
-                    ivs[stat] = random.randint(15, 31)
-        
-        elif round_number is not None:
-            # Scale based on round number
-            # Round 1: Avg 10
-            # Round 10: Avg 25
-            # Max round considered ~20
-            
-            # Base floor/ceiling increases with round
-            min_val = min(20, round_number * 1)
-            max_val = min(31, 15 + round_number * 1)
-            
-            for stat in stats:
-                # Still allow some randomness, but skewed higher
-                # 20% chance for perfect IV even in early rounds
-                if random.random() < 0.1:
-                    ivs[stat] = 31
-                else:
-                    ivs[stat] = random.randint(min_val, max_val)
-        
-        else:
-            # Full random 0-31
-            for stat in stats:
-                ivs[stat] = random.randint(0, 31)
-                
-        return ivs
+    # Type data from shared constants module
+    TYPE_NAMES = _TYPE_NAMES
 
-    def __init__(self, pokemon_id, level=50, moveset=None, ivs=None, evs=None):
+    def __init__(self, pokemon_id, level=50, moveset=None, ivs=None, evs=None, ability_override=None):
         """
         Create a Pokemon instance.
         
@@ -118,6 +52,7 @@ class Pokemon:
             moveset (list): List of move IDs (max 4), e.g., [85, 93, 99, 12]
             ivs (dict): Individual Values (0-31) for each stat, optional
             evs (dict): Effort Values (0-255, max 510 total) for each stat, optional
+            ability_override (str): Force a specific ability by name, optional
         
         Example:
             pikachu = Pokemon(25, level=50, moveset=[85, 93, 99, 12])
@@ -142,6 +77,11 @@ class Pokemon:
         self.base_speed = base_data['speed']
         self.evolution_level = base_data['evolution_level']
         self.exp_curve = base_data['exp_curve']
+        
+        # Load ability from database
+        self.ability = None
+        self.ability_id = None
+        self._load_ability(repo, ability_override)
         
         # IVs and EVs (for more advanced stat calculation)
         if ivs is None:
@@ -203,6 +143,7 @@ class Pokemon:
         self.trap_turns = 0  # Turns remaining for trap
         self.seeded = False  # Leech Seed
         self.protected = False  # Protect/Detect
+        self.turns_active = 0  # Turns since entering battle (for Fake Out, First Impression)
         
         # Substitute
         self.substitute = False  # Has substitute active
@@ -240,38 +181,375 @@ class Pokemon:
         self.moves = []
         if moveset:
             self._load_moves(moveset)
-    
-    def _calculate_hp_stat(self):
+
+    # *** PUBLIC ***
+
+    def apply_status(self, status, duration=0):
         """
-        Calculate max HP stat.
-        Gen 1-2 Formula: floor(((Base + IV) * 2 + floor(sqrt(EV) / 4)) * Level / 100) + Level + 10
-        Simplified: ((Base * 2 + IV + EV/4) * Level / 100) + Level + 10
-        """
-        base = self.base_hp
-        iv = self.ivs['hp']
-        ev = self.evs['hp'] // 4
+        Apply status condition.
         
-        return int(((base * 2 + iv + ev) * self.level / 100) + self.level + 10)
-    
-    def _calculate_stat(self, stat_name):
+        Args:
+            status (str): 'burn', 'paralysis', 'poison', 'badly_poison', 'sleep', 'freeze'
+            duration (int): Duration for sleep (1-7 turns)
+        
+        Returns:
+            bool: True if status was applied, False if already has status
         """
-        Calculate non-HP stat.
-        Gen 1-2 Formula: floor(((Base + IV) * 2 + floor(sqrt(EV) / 4)) * Level / 100) + 5
+        if self.fainted:
+            return False
+        
+        # Can only have one major status at a time
+        if self.status is not None:
+            return False
+        
+        self.status = status
+        
+        if status == 'sleep':
+            self.sleep_turns = duration if duration > 0 else 3  # Default 3 turns
+        elif status == 'badly_poison':
+            self.toxic_counter = 1
+        
+        return True
+    # region Capability checks
+
+    def can_evolve(self):
         """
-        base_map = {
-            'attack': self.base_attack,
-            'defense': self.base_defense,
-            'sp_attack': self.base_sp_attack,
-            'sp_defense': self.base_sp_defense,
-            'speed': self.base_speed
+        Check if Pokemon can evolve at current level.
+        Supports multiple evolution paths (e.g., Eevee) via pokemon_evolutions table.
+        Works even if Pokemon level is higher than evolution threshold.
+        
+        Returns:
+            tuple: (bool, list or None) - (can_evolve, list of evolution_ids)
+                   If multiple evolutions available, returns all options
+        """
+        # Check pokemon_evolutions table for evolution data
+        import sqlite3
+        
+        valid_evolutions = []
+        conn = None
+        
+        try:
+            conn = sqlite3.connect('data/pokemon_battle.db')
+            cursor = conn.cursor()
+            
+            # Check for evolutions in the pokemon_evolutions table
+            cursor.execute('''
+                SELECT evolves_to_id, evolution_level 
+                FROM pokemon_evolutions 
+                WHERE pokemon_id = ?
+            ''', (self.id,))
+            rows = cursor.fetchall()
+            
+            if rows:
+                # Check each possible evolution
+                for evo_id, evo_lvl in rows:
+                    if self.level >= evo_lvl:
+                        valid_evolutions.append(evo_id)
+            else:
+                # Fallback to legacy evolution_level field if no entries in pokemon_evolutions
+                if self.evolution_level and self.level >= self.evolution_level:
+                    # Query to find what this Pokemon evolves into
+                    cursor.execute('''
+                        SELECT id FROM pokemon 
+                        WHERE id > ? AND evolution_level <= ?
+                        ORDER BY id LIMIT 1
+                    ''', (self.id, self.level))
+                    next_evo = cursor.fetchone()
+                    if next_evo:
+                        valid_evolutions.append(next_evo[0])
+
+        except sqlite3.Error as e:
+            print(f"Database error in can_evolve: {e}")
+            return False, None
+        finally:
+            if conn:
+                conn.close()
+                
+        if valid_evolutions:
+            # Sort for consistency
+            valid_evolutions = sorted(list(set(valid_evolutions)))
+            return True, valid_evolutions
+        
+        return False, None
+
+    def can_move(self):
+        """
+        Check if Pokemon can move this turn.
+        
+        Returns:
+            tuple: (can_move: bool, reason: str)
+        """
+        if self.fainted:
+            return False, "fainted"
+        
+        if self.status == 'sleep':
+            return False, "sleep"
+        
+        if self.status == 'freeze':
+            # 20% chance to thaw in Gen 1
+            import random
+            if random.random() < 0.2:
+                self.cure_status()
+                return True, "thawed"
+            return False, "freeze"
+        
+        if self.status == 'paralysis':
+            # 25% chance to be fully paralyzed
+            import random
+            if random.random() < 0.25:
+                return False, "paralysis"
+        
+        if self.confused:
+            # Confusion: 50% chance to hurt itself
+            import random
+            if random.random() < 0.5:
+                return False, "confusion"
+        
+        if self.flinched:
+            self.flinched = False  # Reset after checking
+            return False, "flinch"
+        
+        if self.recharging:
+            self.recharging = False
+            return False, "recharging"
+        
+        return True, None
+
+    def can_use_move(self, move):
+        """
+        Check if a specific move can be used.
+        
+        Args:
+            move: Move object or move index
+        
+        Returns:
+            tuple: (can_use: bool, reason: str)
+        """
+        # Check if disabled
+        if self.disabled_move and move == self.disabled_move:
+            return False, "disabled"
+        
+        # Check if taunted (can't use status moves)
+        if self.taunted and hasattr(move, 'is_status') and move.is_status():
+            return False, "taunted"
+        
+        # Check if encored (must use specific move)
+        if self.encore and move != self.encore_move:
+            return False, "encored"
+        
+        # Check if tormented (can't use same move twice)
+        if self.tormented and move == self.last_move_used:
+            return False, "tormented"
+        
+        return True, None
+
+    # endregion Capability checks
+
+    def check_moves_learned_at_level(self, level):
+        """
+        Check what moves this Pokemon learns at a specific level.
+        
+        Args:
+            level (int): Level to check
+            
+        Returns:
+            list: List of move dicts with 'id' and 'name'
+        """
+        return get_moves_at_level(self.id, level)
+
+    def create_substitute(self, hp_cost=None):
+        """
+        Create a substitute with 1/4 of max HP.
+        
+        Args:
+            hp_cost (int): HP to use for substitute (defaults to 1/4 max HP)
+        
+        Returns:
+            bool: True if substitute was created, False otherwise
+        """
+        if self.substitute:
+            return False  # Already has substitute
+        
+        cost = hp_cost if hp_cost else max(1, self.max_hp // 4)
+        
+        if self.current_hp <= cost:
+            return False  # Not enough HP
+        
+        self.take_damage(cost)
+        self.substitute = True
+        self.substitute_hp = cost
+        return True
+
+    def cure_status(self):
+        """Cure status condition"""
+        self.status = None
+        self.sleep_turns = 0
+        self.toxic_counter = 0
+
+    def damage_substitute(self, damage):
+        """
+        Apply damage to substitute instead of Pokemon.
+        
+        Args:
+            damage (int): Damage amount
+        
+        Returns:
+            dict: {'broke': bool, 'remaining_damage': int}
+        """
+        if not self.substitute:
+            return {'broke': False, 'remaining_damage': damage}
+        
+        actual_damage = min(damage, self.substitute_hp)
+        self.substitute_hp -= actual_damage
+        
+        if self.substitute_hp <= 0:
+            self.substitute = False
+            self.substitute_hp = 0
+            return {'broke': True, 'remaining_damage': damage - actual_damage}
+        
+        return {'broke': False, 'remaining_damage': 0}
+
+    def evolve(self, new_species_id):
+        """
+        Evolve Pokemon into a new species.
+        Stats are recalculated based on new base stats.
+        HP percentage is preserved.
+        Moves are kept unless new species can't learn them.
+        
+        Args:
+            new_species_id (int): ID of the evolved species
+            
+        Returns:
+            dict: Evolution info {'old_name', 'new_name', 'stat_changes'}
+        """
+        old_name = self.name
+        old_stats = {
+            'hp': self.max_hp,
+            'attack': self.attack,
+            'defense': self.defense,
+            'sp_attack': self.sp_attack,
+            'sp_defense': self.sp_defense,
+            'speed': self.speed
         }
         
-        base = base_map[stat_name]
-        iv = self.ivs[stat_name]
-        ev = self.evs[stat_name] // 4
+        # Get HP percentage before evolution
+        hp_percentage = self.get_hp_percentage() / 100
         
-        return int(((base * 2 + iv + ev) * self.level / 100) + 5)
-    
+        # Load new species data
+        repo = PokemonRepository()
+        new_data = repo.get_by_id(new_species_id)
+        
+        if not new_data:
+            raise ValueError(f"Cannot evolve: species {new_species_id} not found")
+        
+        # Update base data
+        self.id = new_data['id']
+        self.name = new_data['name']
+        self.type1 = new_data['type1']
+        self.type2 = new_data['type2']
+        self.base_hp = new_data['hp']
+        self.base_attack = new_data['attack']
+        self.base_defense = new_data['defense']
+        self.base_sp_attack = new_data['special_attack']
+        self.base_sp_defense = new_data['special_defense']
+        self.base_speed = new_data['speed']
+        self.evolution_level = new_data['evolution_level']
+        self.exp_curve = new_data['exp_curve']
+        
+        # Recalculate stats
+        self.max_hp = self._calculate_hp_stat()
+        self.attack = self._calculate_stat('attack')
+        self.defense = self._calculate_stat('defense')
+        self.sp_attack = self._calculate_stat('sp_attack')
+        self.sp_defense = self._calculate_stat('sp_defense')
+        self.speed = self._calculate_stat('speed')
+        
+        # Restore HP percentage (but at least 1 HP if alive)
+        if self.current_hp > 0:
+            self.current_hp = max(1, int(self.max_hp * hp_percentage))
+        
+        # Calculate stat changes
+        stat_changes = {
+            'hp': self.max_hp - old_stats['hp'],
+            'attack': self.attack - old_stats['attack'],
+            'defense': self.defense - old_stats['defense'],
+            'sp_attack': self.sp_attack - old_stats['sp_attack'],
+            'sp_defense': self.sp_defense - old_stats['sp_defense'],
+            'speed': self.speed - old_stats['speed']
+        }
+        
+        return {
+            'old_name': old_name,
+            'new_name': self.name,
+            'stat_changes': stat_changes
+        }
+
+    def gain_exp(self, exp_amount: int) -> dict:
+        """
+        Award experience points and handle level-ups.
+        
+        Args:
+            exp_amount: EXP points to award
+            
+        Returns:
+            dict: Level-up info {'leveled_up', 'old_level', 'new_level', 'stat_gains', 'exp_gained', 'total_exp'}
+        """
+        old_level = self.level
+        old_stats = {
+            'hp': self.max_hp,
+            'attack': self.attack,
+            'defense': self.defense,
+            'sp_attack': self.sp_attack,
+            'sp_defense': self.sp_defense,
+            'speed': self.speed
+        }
+        
+        # Add experience
+        self.current_exp += exp_amount
+        
+        # Check for level up(s)
+        new_level = ExperienceCurve.level_from_exp(self.current_exp, self.exp_curve)
+        leveled_up = new_level > old_level
+        
+        if leveled_up and new_level <= 100:
+            # Get HP percentage before level up
+            hp_percentage = self.get_hp_percentage() / 100
+            
+            # Update level
+            self.level = new_level
+            
+            # Recalculate stats
+            self.max_hp = self._calculate_hp_stat()
+            self.attack = self._calculate_stat('attack')
+            self.defense = self._calculate_stat('defense')
+            self.sp_attack = self._calculate_stat('sp_attack')
+            self.sp_defense = self._calculate_stat('sp_defense')
+            self.speed = self._calculate_stat('speed')
+            
+            # Restore HP percentage (but at least 1 HP if alive)
+            if self.current_hp > 0:
+                self.current_hp = max(1, int(self.max_hp * hp_percentage))
+        
+        # Calculate stat gains
+        stat_gains = {
+            'hp': self.max_hp - old_stats['hp'],
+            'attack': self.attack - old_stats['attack'],
+            'defense': self.defense - old_stats['defense'],
+            'sp_attack': self.sp_attack - old_stats['sp_attack'],
+            'sp_defense': self.sp_defense - old_stats['sp_defense'],
+            'speed': self.speed - old_stats['speed']
+        }
+        
+        return {
+            'leveled_up': leveled_up,
+            'old_level': old_level,
+            'new_level': self.level,
+            'stat_gains': stat_gains,
+            'exp_gained': exp_amount,
+            'total_exp': self.current_exp
+        }
+    # region Getters
+
     def get_effective_stat(self, stat_name):
         """
         Get stat with stage modifiers applied.
@@ -311,33 +589,11 @@ class Pokemon:
             effective = effective // 4
         
         return effective
-    
-    def modify_stat_stage(self, stat_name, change):
-        """
-        Modify a stat stage by a certain amount.
-        
-        Args:
-            stat_name (str): Stat to modify
-            change (int): Amount to change (-6 to +6)
-        
-        Returns:
-            int: Actual change applied (may be limited by min/max)
-        """
-        if stat_name not in self.stat_stages:
-            return 0
-        
-        old_stage = self.stat_stages[stat_name]
-        new_stage = max(-6, min(6, old_stage + change))
-        actual_change = new_stage - old_stage
-        
-        self.stat_stages[stat_name] = new_stage
-        return actual_change
-    
-    def reset_stat_stages(self):
-        """Reset all stat stages to 0"""
-        for stat in self.stat_stages:
-            self.stat_stages[stat] = 0
-    
+
+    def get_hp_percentage(self):
+        """Get current HP as percentage"""
+        return (self.current_hp / self.max_hp) * 100 if self.max_hp > 0 else 0
+
     def get_stat_changes_display(self):
         """Get a formatted string showing current stat stage changes
         
@@ -361,42 +617,21 @@ class Pokemon:
                 changes.append(f"{sign}{stage} {stat_names[stat]}")
         
         return ', '.join(changes) if changes else ''
-    
-    def _load_moves(self, moveset):
+
+    # endregion Getters
+
+    def has_type(self, type_name):
         """
-        Load moves from database.
+        Check if Pokemon has a specific type.
         
         Args:
-            moveset (list): List of move IDs (max 4)
-        """
-        move_repo = MoveRepository()
-        
-        for move_id in moveset[:4]:  # Max 4 moves
-            move_data = move_repo.get_with_effects(move_id)
-            if move_data:
-                self.moves.append(Move(move_data))
-            else:
-                print(f"Warning: Move with ID {move_id} not found")
-    
-    def take_damage(self, damage):
-        """
-        Apply damage to Pokemon.
-        
-        Args:
-            damage (int): Damage amount
+            type_name (str): Type to check
         
         Returns:
-            int: Actual damage dealt
+            bool: True if Pokemon has this type
         """
-        actual_damage = min(damage, self.current_hp)
-        self.current_hp = max(0, self.current_hp - damage)
-        
-        if self.current_hp == 0:
-            self.fainted = True
-            self.status = None  # Status is cleared when fainted
-        
-        return actual_damage
-    
+        return self.type1 == type_name or self.type2 == type_name
+
     def heal(self, amount):
         """
         Heal HP.
@@ -413,226 +648,104 @@ class Pokemon:
         old_hp = self.current_hp
         self.current_hp = min(self.max_hp, self.current_hp + amount)
         return self.current_hp - old_hp
-    
-    def restore_pp(self, move_index=None, amount=10):
-        """
-        Restore PP for a move or all moves.
-        
-        Args:
-            move_index (int): Index of move to restore (None = all moves)
-            amount (int): Amount of PP to restore
-        """
-        if move_index is not None:
-            if 0 <= move_index < len(self.moves):
-                self.moves[move_index].restore_pp(amount)
-        else:
-            for move in self.moves:
-                move.restore_pp(amount)
-    
-    def apply_status(self, status, duration=0):
-        """
-        Apply status condition.
-        
-        Args:
-            status (str): 'burn', 'paralysis', 'poison', 'badly_poison', 'sleep', 'freeze'
-            duration (int): Duration for sleep (1-7 turns)
-        
-        Returns:
-            bool: True if status was applied, False if already has status
-        """
-        if self.fainted:
-            return False
-        
-        # Can only have one major status at a time
-        if self.status is not None:
-            return False
-        
-        self.status = status
-        
-        if status == 'sleep':
-            self.sleep_turns = duration if duration > 0 else 3  # Default 3 turns
-        elif status == 'badly_poison':
-            self.toxic_counter = 1
-        
-        return True
-    
-    def cure_status(self):
-        """Cure status condition"""
-        self.status = None
-        self.sleep_turns = 0
-        self.toxic_counter = 0
-    
-    def create_substitute(self, hp_cost=None):
-        """
-        Create a substitute with 1/4 of max HP.
-        
-        Args:
-            hp_cost (int): HP to use for substitute (defaults to 1/4 max HP)
-        
-        Returns:
-            bool: True if substitute was created, False otherwise
-        """
-        if self.substitute:
-            return False  # Already has substitute
-        
-        cost = hp_cost if hp_cost else max(1, self.max_hp // 4)
-        
-        if self.current_hp <= cost:
-            return False  # Not enough HP
-        
-        self.take_damage(cost)
-        self.substitute = True
-        self.substitute_hp = cost
-        return True
-    
-    def damage_substitute(self, damage):
-        """
-        Apply damage to substitute instead of Pokemon.
-        
-        Args:
-            damage (int): Damage amount
-        
-        Returns:
-            dict: {'broke': bool, 'remaining_damage': int}
-        """
-        if not self.substitute:
-            return {'broke': False, 'remaining_damage': damage}
-        
-        actual_damage = min(damage, self.substitute_hp)
-        self.substitute_hp -= actual_damage
-        
-        if self.substitute_hp <= 0:
-            self.substitute = False
-            self.substitute_hp = 0
-            return {'broke': True, 'remaining_damage': damage - actual_damage}
-        
-        return {'broke': False, 'remaining_damage': 0}
-    
-    def can_use_move(self, move):
-        """
-        Check if a specific move can be used.
-        
-        Args:
-            move: Move object or move index
-        
-        Returns:
-            tuple: (can_use: bool, reason: str)
-        """
-        # Check if disabled
-        if self.disabled_move and move == self.disabled_move:
-            return False, "disabled"
-        
-        # Check if taunted (can't use status moves)
-        if self.taunted and hasattr(move, 'is_status') and move.is_status():
-            return False, "taunted"
-        
-        # Check if encored (must use specific move)
-        if self.encore and move != self.encore_move:
-            return False, "encored"
-        
-        # Check if tormented (can't use same move twice)
-        if self.tormented and move == self.last_move_used:
-            return False, "tormented"
-        
-        return True, None
-    
-    def transform(self, target):
-        """
-        Transform into the target Pokemon.
-        Copies stats (except HP), moves, types, and stat stages.
-        """
-        if self.transformed:
-            return False  # Already transformed
-            
-        # 1. Backup original state
-        self.original_stats = {
-            'attack': self.attack,
-            'defense': self.defense,
-            'sp_attack': self.sp_attack,
-            'sp_defense': self.sp_defense,
-            'speed': self.speed,
-            'type1': self.type1,
-            'type2': self.type2,
-            'moves': [m.copy() for m in self.moves], # Deep copy of moves
-        }
-        
-        # 2. Copy Target Stats (HP remains original)
-        self.attack = target.attack
-        self.defense = target.defense
-        self.sp_attack = target.sp_attack
-        self.sp_defense = target.sp_defense
-        self.speed = target.speed
-        
-        # 3. Copy Target Types
-        self.type1 = target.type1
-        self.type2 = target.type2
-        
-        # 4. Copy Target Moves with 5 PP
-        self.moves = []
-        for move in target.moves:
-            new_move = move.copy()
-            
-            # Handle Move object fields
-            if hasattr(new_move, 'pp_current'):
-                new_move.pp_current = 5
-                new_move.pp_max = 5
-            # Handle dict fields (fallback)
-            elif isinstance(new_move, dict):
-                new_move['pp'] = 5
-                new_move['max_pp'] = 5
-                
-            self.moves.append(new_move)
-            
-        # 5. Copy Stat Stages
-        self.stat_stages = target.stat_stages.copy()
-        
-        # 6. Set Flag
-        self.transformed = True
-        return True
-    
-    def reset_transform(self):
-        """Revert transformation"""
-        if not self.transformed or not self.original_stats:
-            return
-            
-        # Restore stats
-        self.attack = self.original_stats['attack']
-        self.defense = self.original_stats['defense']
-        self.sp_attack = self.original_stats['sp_attack']
-        self.sp_defense = self.original_stats['sp_defense']
-        self.speed = self.original_stats['speed']
-        
-        # Restore types
-        self.type1 = self.original_stats['type1']
-        self.type2 = self.original_stats['type2']
-        
-        # Restore moves
-        self.moves = self.original_stats['moves']
-        
-        self.transformed = False
-        self.original_stats = None
 
-    def reset_volatile_conditions(self):
-        """Reset all volatile battle conditions (when switching out)"""
-        # Reset transformation first
-        self.reset_transform()
+    def is_alive(self):
+        """Check if Pokemon is alive"""
+        return not self.fainted and self.current_hp > 0
+
+    def learn_move(self, move_id, replace_index=None):
+        """
+        Learn a new move, optionally replacing an existing one.
         
-        self.confused = False
-        self.confusion_turns = 0
-        self.flinched = False
-        self.charging = False
-        self.recharging = False
-        self.protected = False
+        Args:
+            move_id (int): ID of the move to learn
+            replace_index (int): Index (0-3) of move to replace, or None to append
+            
+        Returns:
+            dict: Result with 'success', 'message', and 'replaced_move' if applicable
+        """
+        # Load the move
+        move_repo = MoveRepository()
+        move_data = move_repo.get_by_id(move_id)
         
-        # Reset stat stages
-        self.reset_stat_stages()
+        if not move_data:
+            return {'success': False, 'message': 'Move not found'}
         
-        # Keep some conditions that persist through switches
-        # (substitute, trap if applicable, etc.)
-        if not self.ingrain:  # Ingrain prevents switching
-            self.trapped = False
-            self.trap_turns = 0
-    
+        # Check if Pokemon already knows this move
+        for i, existing_move in enumerate(self.moves):
+            if existing_move.get('id') == move_id:
+                # If replacing this exact move, allow it
+                if replace_index == i:
+                    break
+                return {'success': False, 'message': f'Already knows {move_data["name"]}'}
+        
+        # If replace_index is specified, replace that move
+        if replace_index is not None:
+            if 0 <= replace_index < len(self.moves):
+                old_move = self.moves[replace_index]
+                self.moves[replace_index] = move_data
+                return {
+                    'success': True,
+                    'message': f'Learned {move_data["name"]}!',
+                    'replaced_move': old_move
+                }
+            else:
+                return {'success': False, 'message': 'Invalid move slot'}
+        
+        # If less than 4 moves, just add it
+        if len(self.moves) < 4:
+            self.moves.append(move_data)
+            return {'success': True, 'message': f'Learned {move_data["name"]}!'}
+        
+        # Already has 4 moves and no replacement specified
+        return {'success': False, 'message': 'Already knows 4 moves'}
+
+    def level_up(self, levels=1):
+        """
+        Directly increase Pokemon level (legacy method for compatibility).
+        Prefer using gain_exp() for proper EXP-based leveling.
+        
+        Args:
+            levels (int): Number of levels to gain (default 1)
+            
+        Returns:
+            dict: Dictionary with level-up info {'old_level', 'new_level', 'stat_gains'}
+        """
+        # Calculate EXP needed for target level
+        target_level = min(100, self.level + levels)
+        target_exp = ExperienceCurve.exp_for_level(target_level, self.exp_curve)
+        exp_needed = target_exp - self.current_exp
+        
+        # Use gain_exp to handle the level up
+        result = self.gain_exp(exp_needed)
+        
+        return {
+            'old_level': result['old_level'],
+            'new_level': result['new_level'],
+            'stat_gains': result['stat_gains']
+        }
+
+    def modify_stat_stage(self, stat_name, change):
+        """
+        Modify a stat stage by a certain amount.
+        
+        Args:
+            stat_name (str): Stat to modify
+            change (int): Amount to change (-6 to +6)
+        
+        Returns:
+            int: Actual change applied (may be limited by min/max)
+        """
+        if stat_name not in self.stat_stages:
+            return 0
+        
+        old_stage = self.stat_stages[stat_name]
+        new_stage = max(-6, min(6, old_stage + change))
+        actual_change = new_stage - old_stage
+        
+        self.stat_stages[stat_name] = new_stage
+        return actual_change
+
     def process_end_of_turn_effects(self):
         """
         Process status effects at end of turn.
@@ -751,357 +864,303 @@ class Pokemon:
                     effects['fell_asleep'] = True
         
         return effects
-    
-    def can_move(self):
-        """
-        Check if Pokemon can move this turn.
-        
-        Returns:
-            tuple: (can_move: bool, reason: str)
-        """
-        if self.fainted:
-            return False, "fainted"
-        
-        if self.status == 'sleep':
-            return False, "sleep"
-        
-        if self.status == 'freeze':
-            # 20% chance to thaw in Gen 1
-            import random
-            if random.random() < 0.2:
-                self.cure_status()
-                return True, "thawed"
-            return False, "freeze"
-        
-        if self.status == 'paralysis':
-            # 25% chance to be fully paralyzed
-            import random
-            if random.random() < 0.25:
-                return False, "paralysis"
-        
-        if self.confused:
-            # Confusion: 50% chance to hurt itself
-            import random
-            if random.random() < 0.5:
-                return False, "confusion"
-        
-        if self.flinched:
-            self.flinched = False  # Reset after checking
-            return False, "flinch"
-        
-        if self.recharging:
-            self.recharging = False
-            return False, "recharging"
-        
-        return True, None
-    
-    def has_type(self, type_name):
-        """
-        Check if Pokemon has a specific type.
-        
-        Args:
-            type_name (str): Type to check
-        
-        Returns:
-            bool: True if Pokemon has this type
-        """
-        return self.type1 == type_name or self.type2 == type_name
-    
-    def is_alive(self):
-        """Check if Pokemon is alive"""
-        return not self.fainted and self.current_hp > 0
-    
-    def get_hp_percentage(self):
-        """Get current HP as percentage"""
-        return (self.current_hp / self.max_hp) * 100 if self.max_hp > 0 else 0
-    
-    def gain_exp(self, exp_amount: int) -> dict:
-        """
-        Award experience points and handle level-ups.
-        
-        Args:
-            exp_amount: EXP points to award
-            
-        Returns:
-            dict: Level-up info {'leveled_up', 'old_level', 'new_level', 'stat_gains', 'exp_gained', 'total_exp'}
-        """
-        old_level = self.level
-        old_stats = {
-            'hp': self.max_hp,
-            'attack': self.attack,
-            'defense': self.defense,
-            'sp_attack': self.sp_attack,
-            'sp_defense': self.sp_defense,
-            'speed': self.speed
-        }
-        
-        # Add experience
-        self.current_exp += exp_amount
-        
-        # Check for level up(s)
-        new_level = ExperienceCurve.level_from_exp(self.current_exp, self.exp_curve)
-        leveled_up = new_level > old_level
-        
-        if leveled_up and new_level <= 100:
-            # Get HP percentage before level up
-            hp_percentage = self.get_hp_percentage() / 100
-            
-            # Update level
-            self.level = new_level
-            
-            # Recalculate stats
-            self.max_hp = self._calculate_hp_stat()
-            self.attack = self._calculate_stat('attack')
-            self.defense = self._calculate_stat('defense')
-            self.sp_attack = self._calculate_stat('sp_attack')
-            self.sp_defense = self._calculate_stat('sp_defense')
-            self.speed = self._calculate_stat('speed')
-            
-            # Restore HP percentage (but at least 1 HP if alive)
-            if self.current_hp > 0:
-                self.current_hp = max(1, int(self.max_hp * hp_percentage))
-        
-        # Calculate stat gains
-        stat_gains = {
-            'hp': self.max_hp - old_stats['hp'],
-            'attack': self.attack - old_stats['attack'],
-            'defense': self.defense - old_stats['defense'],
-            'sp_attack': self.sp_attack - old_stats['sp_attack'],
-            'sp_defense': self.sp_defense - old_stats['sp_defense'],
-            'speed': self.speed - old_stats['speed']
-        }
-        
-        return {
-            'leveled_up': leveled_up,
-            'old_level': old_level,
-            'new_level': self.level,
-            'stat_gains': stat_gains,
-            'exp_gained': exp_amount,
-            'total_exp': self.current_exp
-        }
-    
-    def check_moves_learned_at_level(self, level):
-        """
-        Check what moves this Pokemon learns at a specific level.
-        
-        Args:
-            level (int): Level to check
-            
-        Returns:
-            list: List of move dicts with 'id' and 'name'
-        """
-        return get_moves_at_level(self.id, level)
-    
-    def learn_move(self, move_id, replace_index=None):
-        """
-        Learn a new move, optionally replacing an existing one.
-        
-        Args:
-            move_id (int): ID of the move to learn
-            replace_index (int): Index (0-3) of move to replace, or None to append
-            
-        Returns:
-            dict: Result with 'success', 'message', and 'replaced_move' if applicable
-        """
-        # Load the move
-        move_repo = MoveRepository()
-        move_data = move_repo.get_by_id(move_id)
-        
-        if not move_data:
-            return {'success': False, 'message': 'Move not found'}
-        
-        # Check if Pokemon already knows this move
-        for i, existing_move in enumerate(self.moves):
-            if existing_move.get('id') == move_id:
-                # If replacing this exact move, allow it
-                if replace_index == i:
-                    break
-                return {'success': False, 'message': f'Already knows {move_data["name"]}'}
-        
-        # If replace_index is specified, replace that move
-        if replace_index is not None:
-            if 0 <= replace_index < len(self.moves):
-                old_move = self.moves[replace_index]
-                self.moves[replace_index] = move_data
-                return {
-                    'success': True,
-                    'message': f'Learned {move_data["name"]}!',
-                    'replaced_move': old_move
-                }
-            else:
-                return {'success': False, 'message': 'Invalid move slot'}
-        
-        # If less than 4 moves, just add it
-        if len(self.moves) < 4:
-            self.moves.append(move_data)
-            return {'success': True, 'message': f'Learned {move_data["name"]}!'}
-        
-        # Already has 4 moves and no replacement specified
-        return {'success': False, 'message': 'Already knows 4 moves'}
-    
-    def level_up(self, levels=1):
-        """
-        Directly increase Pokemon level (legacy method for compatibility).
-        Prefer using gain_exp() for proper EXP-based leveling.
-        
-        Args:
-            levels (int): Number of levels to gain (default 1)
-            
-        Returns:
-            dict: Dictionary with level-up info {'old_level', 'new_level', 'stat_gains'}
-        """
-        # Calculate EXP needed for target level
-        target_level = min(100, self.level + levels)
-        target_exp = ExperienceCurve.exp_for_level(target_level, self.exp_curve)
-        exp_needed = target_exp - self.current_exp
-        
-        # Use gain_exp to handle the level up
-        result = self.gain_exp(exp_needed)
-        
-        return {
-            'old_level': result['old_level'],
-            'new_level': result['new_level'],
-            'stat_gains': result['stat_gains']
-        }
-    
-    def can_evolve(self):
-        """
-        Check if Pokemon can evolve at current level.
-        Supports multiple evolution paths (e.g., Eevee) via pokemon_evolutions table.
-        Works even if Pokemon level is higher than evolution threshold.
-        
-        Returns:
-            tuple: (bool, list or None) - (can_evolve, list of evolution_ids)
-                   If multiple evolutions available, returns all options
-        """
-        # Check pokemon_evolutions table for evolution data
-        import sqlite3
-        
-        valid_evolutions = []
-        conn = None
-        
-        try:
-            conn = sqlite3.connect('data/pokemon_battle.db')
-            cursor = conn.cursor()
-            
-            # Check for evolutions in the pokemon_evolutions table
-            cursor.execute('''
-                SELECT evolves_to_id, evolution_level 
-                FROM pokemon_evolutions 
-                WHERE pokemon_id = ?
-            ''', (self.id,))
-            rows = cursor.fetchall()
-            
-            if rows:
-                # Check each possible evolution
-                for evo_id, evo_lvl in rows:
-                    if self.level >= evo_lvl:
-                        valid_evolutions.append(evo_id)
-            else:
-                # Fallback to legacy evolution_level field if no entries in pokemon_evolutions
-                if self.evolution_level and self.level >= self.evolution_level:
-                    # Query to find what this Pokemon evolves into
-                    cursor.execute('''
-                        SELECT id FROM pokemon 
-                        WHERE id > ? AND evolution_level <= ?
-                        ORDER BY id LIMIT 1
-                    ''', (self.id, self.level))
-                    next_evo = cursor.fetchone()
-                    if next_evo:
-                        valid_evolutions.append(next_evo[0])
+    # region Reset
 
-        except sqlite3.Error as e:
-            print(f"Database error in can_evolve: {e}")
-            return False, None
-        finally:
-            if conn:
-                conn.close()
-                
-        if valid_evolutions:
-            # Sort for consistency
-            valid_evolutions = sorted(list(set(valid_evolutions)))
-            return True, valid_evolutions
+    def reset_stat_stages(self):
+        """Reset all stat stages to 0"""
+        for stat in self.stat_stages:
+            self.stat_stages[stat] = 0
+
+    def reset_transform(self):
+        """Revert transformation"""
+        if not self.transformed or not self.original_stats:
+            return
+            
+        # Restore stats
+        self.attack = self.original_stats['attack']
+        self.defense = self.original_stats['defense']
+        self.sp_attack = self.original_stats['sp_attack']
+        self.sp_defense = self.original_stats['sp_defense']
+        self.speed = self.original_stats['speed']
         
-        return False, None
-    
-    def evolve(self, new_species_id):
+        # Restore types
+        self.type1 = self.original_stats['type1']
+        self.type2 = self.original_stats['type2']
+        
+        # Restore moves
+        self.moves = self.original_stats['moves']
+        
+        self.transformed = False
+        self.original_stats = None
+
+    def reset_volatile_conditions(self):
+        """Reset all volatile battle conditions (when switching out)"""
+        # Reset transformation first
+        self.reset_transform()
+        
+        self.confused = False
+        self.confusion_turns = 0
+        self.flinched = False
+        self.charging = False
+        self.recharging = False
+        self.protected = False
+        
+        # Reset stat stages
+        self.reset_stat_stages()
+        
+        # Keep some conditions that persist through switches
+        # (substitute, trap if applicable, etc.)
+        if not self.ingrain:  # Ingrain prevents switching
+            self.trapped = False
+            self.trap_turns = 0
+
+    # endregion Reset
+
+    def restore_pp(self, move_index=None, amount=10):
         """
-        Evolve Pokemon into a new species.
-        Stats are recalculated based on new base stats.
-        HP percentage is preserved.
-        Moves are kept unless new species can't learn them.
+        Restore PP for a move or all moves.
         
         Args:
-            new_species_id (int): ID of the evolved species
-            
-        Returns:
-            dict: Evolution info {'old_name', 'new_name', 'stat_changes'}
+            move_index (int): Index of move to restore (None = all moves)
+            amount (int): Amount of PP to restore
         """
-        old_name = self.name
-        old_stats = {
-            'hp': self.max_hp,
+        if move_index is not None:
+            if 0 <= move_index < len(self.moves):
+                self.moves[move_index].restore_pp(amount)
+        else:
+            for move in self.moves:
+                move.restore_pp(amount)
+
+    def take_damage(self, damage):
+        """
+        Apply damage to Pokemon.
+        
+        Args:
+            damage (int): Damage amount
+        
+        Returns:
+            int: Actual damage dealt
+        """
+        actual_damage = min(damage, self.current_hp)
+        self.current_hp = max(0, self.current_hp - damage)
+        
+        if self.current_hp == 0:
+            self.fainted = True
+            self.status = None  # Status is cleared when fainted
+        
+        return actual_damage
+
+    def transform(self, target):
+        """
+        Transform into the target Pokemon.
+        Copies stats (except HP), moves, types, and stat stages.
+        """
+        if self.transformed:
+            return False  # Already transformed
+            
+        # 1. Backup original state
+        self.original_stats = {
             'attack': self.attack,
             'defense': self.defense,
             'sp_attack': self.sp_attack,
             'sp_defense': self.sp_defense,
-            'speed': self.speed
+            'speed': self.speed,
+            'type1': self.type1,
+            'type2': self.type2,
+            'moves': [m.copy() for m in self.moves], # Deep copy of moves
         }
         
-        # Get HP percentage before evolution
-        hp_percentage = self.get_hp_percentage() / 100
+        # 2. Copy Target Stats (HP remains original)
+        self.attack = target.attack
+        self.defense = target.defense
+        self.sp_attack = target.sp_attack
+        self.sp_defense = target.sp_defense
+        self.speed = target.speed
         
-        # Load new species data
-        repo = PokemonRepository()
-        new_data = repo.get_by_id(new_species_id)
+        # 3. Copy Target Types
+        self.type1 = target.type1
+        self.type2 = target.type2
         
-        if not new_data:
-            raise ValueError(f"Cannot evolve: species {new_species_id} not found")
+        # 4. Copy Target Moves with 5 PP
+        self.moves = []
+        for move in target.moves:
+            new_move = move.copy()
+            
+            # Handle Move object fields
+            if hasattr(new_move, 'pp_current'):
+                new_move.pp_current = 5
+                new_move.pp_max = 5
+            # Handle dict fields (fallback)
+            elif isinstance(new_move, dict):
+                new_move['pp'] = 5
+                new_move['max_pp'] = 5
+                
+            self.moves.append(new_move)
+            
+        # 5. Copy Stat Stages
+        self.stat_stages = target.stat_stages.copy()
         
-        # Update base data
-        self.id = new_data['id']
-        self.name = new_data['name']
-        self.type1 = new_data['type1']
-        self.type2 = new_data['type2']
-        self.base_hp = new_data['hp']
-        self.base_attack = new_data['attack']
-        self.base_defense = new_data['defense']
-        self.base_sp_attack = new_data['special_attack']
-        self.base_sp_defense = new_data['special_defense']
-        self.base_speed = new_data['speed']
-        self.evolution_level = new_data['evolution_level']
-        self.exp_curve = new_data['exp_curve']
+        # 6. Set Flag
+        self.transformed = True
+        return True
+
+    # *** PUBLIC STATIC ***
+
+    @staticmethod
+    def generate_ivs(round_number=None, is_starter=False):
+        """
+        Generate random IVs based on game progress or starter status.
         
-        # Recalculate stats
-        self.max_hp = self._calculate_hp_stat()
-        self.attack = self._calculate_stat('attack')
-        self.defense = self._calculate_stat('defense')
-        self.sp_attack = self._calculate_stat('sp_attack')
-        self.sp_defense = self._calculate_stat('sp_defense')
-        self.speed = self._calculate_stat('speed')
+        Args:
+            round_number (int): Current game round (affects average IV quality)
+            is_starter (bool): If True, biases IVs to be much higher
+            
+        Returns:
+            dict: Dictionary of IVs {'hp': x, 'attack': y, ...}
+        """
+        import random
         
-        # Restore HP percentage (but at least 1 HP if alive)
-        if self.current_hp > 0:
-            self.current_hp = max(1, int(self.max_hp * hp_percentage))
+        ivs = {}
+        stats = ['hp', 'attack', 'defense', 'sp_attack', 'sp_defense', 'speed']
         
-        # Calculate stat changes
-        stat_changes = {
-            'hp': self.max_hp - old_stats['hp'],
-            'attack': self.attack - old_stats['attack'],
-            'defense': self.defense - old_stats['defense'],
-            'sp_attack': self.sp_attack - old_stats['sp_attack'],
-            'sp_defense': self.sp_defense - old_stats['sp_defense'],
-            'speed': self.speed - old_stats['speed']
-        }
+        if is_starter:
+            # Starters get biased rolls: Max 31 is guaranteed in 3 stats
+            # The rest are rolled relatively high (15-31)
+            guaranteed_max = random.sample(stats, 3)
+            for stat in stats:
+                if stat in guaranteed_max:
+                    ivs[stat] = 31
+                else:
+                    ivs[stat] = random.randint(15, 31)
         
-        return {
-            'old_name': old_name,
-            'new_name': self.name,
-            'stat_changes': stat_changes
-        }
-    
+        elif round_number is not None:
+            # Scale based on round number
+            # Round 1: Avg 10
+            # Round 10: Avg 25
+            # Max round considered ~20
+            
+            # Base floor/ceiling increases with round
+            min_val = min(20, round_number * 1)
+            max_val = min(31, 15 + round_number * 1)
+            
+            for stat in stats:
+                # Still allow some randomness, but skewed higher
+                # 20% chance for perfect IV even in early rounds
+                if random.random() < 0.1:
+                    ivs[stat] = 31
+                else:
+                    ivs[stat] = random.randint(min_val, max_val)
+        
+        else:
+            # Full random 0-31
+            for stat in stats:
+                ivs[stat] = random.randint(0, 31)
+                
+        return ivs
+
+    @staticmethod
+    def get_type_name(type_id):
+        """Convert type ID to type name"""
+        return _get_type_name(type_id)
+
+    # *** DUNDER METHODS ***
+
     def __repr__(self):
         status_str = f" [{self.status.upper()}]" if self.status else ""
         return f"{self.name} (Lv.{self.level}) - HP: {self.current_hp}/{self.max_hp}{status_str}"
-    
+
     def __str__(self):
         return self.__repr__()
+
+    # *** PRIVATE ***
+
+    def _calculate_hp_stat(self):
+        """
+        Calculate max HP stat.
+        Gen 1-2 Formula: floor(((Base + IV) * 2 + floor(sqrt(EV) / 4)) * Level / 100) + Level + 10
+        Simplified: ((Base * 2 + IV + EV/4) * Level / 100) + Level + 10
+        """
+        base = self.base_hp
+        iv = self.ivs['hp']
+        ev = self.evs['hp'] // 4
+        
+        return int(((base * 2 + iv + ev) * self.level / 100) + self.level + 10)
+
+    def _calculate_stat(self, stat_name):
+        """
+        Calculate non-HP stat.
+        Gen 1-2 Formula: floor(((Base + IV) * 2 + floor(sqrt(EV) / 4)) * Level / 100) + 5
+        """
+        base_map = {
+            'attack': self.base_attack,
+            'defense': self.base_defense,
+            'sp_attack': self.base_sp_attack,
+            'sp_defense': self.base_sp_defense,
+            'speed': self.base_speed
+        }
+        
+        base = base_map[stat_name]
+        iv = self.ivs[stat_name]
+        ev = self.evs[stat_name] // 4
+        
+        return int(((base * 2 + iv + ev) * self.level / 100) + 5)
+
+    def _load_ability(self, repo, ability_override=None):
+        """
+        Load ability from database. Selects a random non-hidden ability
+        unless overridden.
+        
+        Args:
+            repo: PokemonRepository instance
+            ability_override (str): Force a specific ability name
+        """
+        import random
+        
+        abilities = repo.get_abilities(self.id)
+        if not abilities:
+            return
+        
+        if ability_override:
+            # Find the specified ability
+            for ab in abilities:
+                if ab['name'] == ability_override:
+                    self.ability = ab['name']
+                    self.ability_id = ab['id']
+                    return
+            # If not found in this Pokemon's abilities, still set it (e.g., Trace copies)
+            self.ability = ability_override
+            return
+        
+        # Select a non-hidden ability randomly (weighted towards slot 1)
+        normal_abilities = [ab for ab in abilities if not ab['is_hidden']]
+        hidden_abilities = [ab for ab in abilities if ab['is_hidden']]
+        
+        if normal_abilities:
+            # 80% chance normal ability, 20% chance hidden (if available)
+            if hidden_abilities and random.random() < 0.2:
+                chosen = random.choice(hidden_abilities)
+            else:
+                chosen = random.choice(normal_abilities)
+        elif hidden_abilities:
+            chosen = random.choice(hidden_abilities)
+        else:
+            return
+        
+        self.ability = chosen['name']
+        self.ability_id = chosen['id']
+
+    def _load_moves(self, moveset):
+        """
+        Load moves from database.
+        
+        Args:
+            moveset (list): List of move IDs (max 4)
+        """
+        move_repo = MoveRepository()
+        
+        for move_id in moveset[:4]:  # Max 4 moves
+            move_data = move_repo.get_with_effects(move_id)
+            if move_data:
+                self.moves.append(Move(move_data))
+            else:
+                print(f"Warning: Move with ID {move_id} not found")

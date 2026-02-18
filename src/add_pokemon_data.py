@@ -49,6 +49,10 @@ class PokemonDataManager:
         print("Inserting abilities...")
         self._insert_abilities(cursor)
         
+        # Insert pokemon-ability relations
+        print("Inserting pokemon-ability relations...")
+        self._insert_pokemon_abilities(cursor)
+        
         conn.commit()
         conn.close()
         print("✅ Pokemon data initialized successfully!")
@@ -687,7 +691,7 @@ class PokemonDataManager:
             from abilities_data_export import ABILITIES
             
             cursor.executemany('''
-                INSERT INTO abilities (id, name, description, overworld_effect)
+                INSERT OR REPLACE INTO abilities (id, name, description, overworld_effect)
                 VALUES (?, ?, ?, ?)
             ''', ABILITIES)
             print(f'✓ Inserted {len(ABILITIES)} abilities')
@@ -696,6 +700,28 @@ class PokemonDataManager:
             print('   Abilities table will be empty.')
         except Exception as e:
             print(f'✗ Error inserting abilities: {e}')
+            raise
+
+    def _insert_pokemon_abilities(self, cursor):
+        """Insert pokemon-ability relations from exported file"""
+        try:
+            import sys
+            import os
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if project_root not in sys.path:
+                sys.path.insert(0, project_root)
+            from pokemon_abilities_export import POKEMON_ABILITIES
+            
+            cursor.executemany('''
+                INSERT OR REPLACE INTO pokemon_abilities (pokemon_id, ability_id, is_hidden, slot)
+                VALUES (?, ?, ?, ?)
+            ''', POKEMON_ABILITIES)
+            print(f'✓ Inserted {len(POKEMON_ABILITIES)} pokemon-ability relations')
+        except ImportError as e:
+            print(f'⚠️  Warning: pokemon_abilities_export.py not found in project root.')
+            print('   Pokemon-ability relations table will be empty.')
+        except Exception as e:
+            print(f'✗ Error inserting pokemon-ability relations: {e}')
             raise
 
 # Helper functions to interact with Pokémon data

@@ -14,101 +14,49 @@ except ImportError:
 
 class PokemonRepository:
     """Repository for Pokemon data access"""
-    
+
     def __init__(self, db_path="data/pokemon_battle.db"):
         self.db_manager = DatabaseManager(db_path)
         self.db_path = db_path
-    
-    def get_connection(self):
-        """Get database connection"""
-        return self.db_manager.get_connection()
-    
-    def get_by_id(self, pokemon_id):
+
+    # *** PUBLIC ***
+    # region Getters
+
+    def get_abilities(self, pokemon_id):
         """
-        Get a Pokemon by its ID with all its information.
+        Get all abilities for a Pokemon, including hidden abilities.
         
         Args:
-            pokemon_id (int): The Pokemon's ID (1-151)
+            pokemon_id (int): The Pokemon's ID
             
         Returns:
-            dict: Pokemon data or None if not found
+            list: List of ability dicts with 'id', 'name', 'description', 'is_hidden', 'slot'
         """
         conn = self.get_connection()
         cursor = conn.cursor()
         
         cursor.execute('''
-            SELECT id, name, type1, type2, hp, attack, defense, 
-                   special_attack, special_defense, speed, total_stats,
-                   evolution_level, exp_curve
-            FROM pokemon 
-            WHERE id = ?
+            SELECT a.id, a.name, a.description, pa.is_hidden, pa.slot
+            FROM pokemon_abilities pa
+            JOIN abilities a ON pa.ability_id = a.id
+            WHERE pa.pokemon_id = ?
+            ORDER BY pa.is_hidden, pa.slot
         ''', (pokemon_id,))
         
-        row = cursor.fetchone()
+        rows = cursor.fetchall()
         conn.close()
         
-        if not row:
-            return None
-        
-        return {
-            'id': row[0],
-            'name': row[1],
-            'type1': row[2],
-            'type2': row[3],
-            'hp': row[4],
-            'attack': row[5],
-            'defense': row[6],
-            'special_attack': row[7],
-            'special_defense': row[8],
-            'speed': row[9],
-            'total_stats': row[10],
-            'evolution_level': row[11],
-            'exp_curve': row[12]
-        }
-    
-    def get_by_name(self, name):
-        """
-        Get a Pokemon by its name.
-        
-        Args:
-            name (str): The Pokemon's name
-            
-        Returns:
-            dict: Pokemon data or None if not found
-        """
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT id, name, type1, type2, hp, attack, defense, 
-                   special_attack, special_defense, speed, total_stats,
-                   evolution_level, exp_curve
-            FROM pokemon 
-            WHERE name = ?
-        ''', (name,))
-        
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
-            return None
-        
-        return {
-            'id': row[0],
-            'name': row[1],
-            'type1': row[2],
-            'type2': row[3],
-            'hp': row[4],
-            'attack': row[5],
-            'defense': row[6],
-            'special_attack': row[7],
-            'special_defense': row[8],
-            'speed': row[9],
-            'total_stats': row[10],
-            'evolution_level': row[11],
-            'exp_curve': row[12]
-        }
-    
+        return [
+            {
+                'id': row[0],
+                'name': row[1],
+                'description': row[2],
+                'is_hidden': bool(row[3]),
+                'slot': row[4]
+            }
+            for row in rows
+        ]
+
     def get_all(self, order_by='id'):
         """
         Get all Pokemon.
@@ -155,7 +103,119 @@ class PokemonRepository:
             }
             for row in rows
         ]
-    
+
+    def get_by_id(self, pokemon_id):
+        """
+        Get a Pokemon by its ID with all its information.
+        
+        Args:
+            pokemon_id (int): The Pokemon's ID (1-151)
+            
+        Returns:
+            dict: Pokemon data or None if not found
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, name, type1, type2, hp, attack, defense, 
+                   special_attack, special_defense, speed, total_stats,
+                   evolution_level, exp_curve
+            FROM pokemon 
+            WHERE id = ?
+        ''', (pokemon_id,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return None
+        
+        return {
+            'id': row[0],
+            'name': row[1],
+            'type1': row[2],
+            'type2': row[3],
+            'hp': row[4],
+            'attack': row[5],
+            'defense': row[6],
+            'special_attack': row[7],
+            'special_defense': row[8],
+            'speed': row[9],
+            'total_stats': row[10],
+            'evolution_level': row[11],
+            'exp_curve': row[12]
+        }
+
+    def get_by_name(self, name):
+        """
+        Get a Pokemon by its name.
+        
+        Args:
+            name (str): The Pokemon's name
+            
+        Returns:
+            dict: Pokemon data or None if not found
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, name, type1, type2, hp, attack, defense, 
+                   special_attack, special_defense, speed, total_stats,
+                   evolution_level, exp_curve
+            FROM pokemon 
+            WHERE name = ?
+        ''', (name,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return None
+        
+        return {
+            'id': row[0],
+            'name': row[1],
+            'type1': row[2],
+            'type2': row[3],
+            'hp': row[4],
+            'attack': row[5],
+            'defense': row[6],
+            'special_attack': row[7],
+            'special_defense': row[8],
+            'speed': row[9],
+            'total_stats': row[10],
+            'evolution_level': row[11],
+            'exp_curve': row[12]
+        }
+
+    def get_connection(self):
+        """Get database connection"""
+        return self.db_manager.get_connection()
+
+    def get_evolution_chain(self, pokemon_id):
+        """
+        Get the evolution chain for a Pokemon.
+        
+        Args:
+            pokemon_id (int): The Pokemon's ID
+            
+        Returns:
+            list: List of Pokemon in the evolution chain
+        """
+        # This is a simplified version - you might need more complex logic
+        # based on how evolution data is structured
+        pokemon = self.get_by_id(pokemon_id)
+        if not pokemon:
+            return []
+        
+        # For now, just return the pokemon itself
+        # TODO: Implement full evolution chain logic
+        return [pokemon]
+
+    # endregion Getters
+
     def search_by_type(self, pokemon_type):
         """
         Search Pokemon by type (primary or secondary).
@@ -199,39 +259,63 @@ class PokemonRepository:
             }
             for row in rows
         ]
-    
-    def get_evolution_chain(self, pokemon_id):
-        """
-        Get the evolution chain for a Pokemon.
-        
-        Args:
-            pokemon_id (int): The Pokemon's ID
-            
-        Returns:
-            list: List of Pokemon in the evolution chain
-        """
-        # This is a simplified version - you might need more complex logic
-        # based on how evolution data is structured
-        pokemon = self.get_by_id(pokemon_id)
-        if not pokemon:
-            return []
-        
-        # For now, just return the pokemon itself
-        # TODO: Implement full evolution chain logic
-        return [pokemon]
 
 
 class MoveRepository:
     """Repository for Move data access"""
-    
+
     def __init__(self, db_path="data/pokemon_battle.db"):
         self.db_manager = DatabaseManager(db_path)
         self.db_path = db_path
-    
-    def get_connection(self):
-        """Get database connection"""
-        return self.db_manager.get_connection()
-    
+
+    # *** PUBLIC ***
+    # region Getters
+
+    def get_all(self, order_by='id'):
+        """
+        Get all Moves.
+        
+        Args:
+            order_by (str): Field to order by (id, name, power, type)
+            
+        Returns:
+            list: List of Move dictionaries
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        valid_orders = ['id', 'name', 'power', 'type', 'category']
+        if order_by not in valid_orders:
+            order_by = 'id'
+        
+        cursor.execute(f'''
+            SELECT id, name, type, category, pp, power, accuracy, 
+                   causes_damage, makes_contact, priority, target_type, description
+            FROM moves 
+            ORDER BY {order_by}
+        ''')
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [
+            {
+                'id': row[0],
+                'name': row[1],
+                'type': row[2],
+                'category': row[3],
+                'pp': row[4],
+                'power': row[5],
+                'accuracy': row[6],
+                'causes_damage': row[7],
+                'makes_contact': row[8],
+                'priority': row[9],
+                'target_type': row[10],
+                'description': row[11]
+            }
+            for row in rows
+        ]
+
     def get_by_id(self, move_id):
         """
         Get a Move by its ID.
@@ -272,7 +356,11 @@ class MoveRepository:
             'target_type': row[10],
             'description': row[11]
         }
-    
+
+    def get_connection(self):
+        """Get database connection"""
+        return self.db_manager.get_connection()
+
     def get_with_effects(self, move_id):
         """
         Get a Move with all its effects.
@@ -328,94 +416,9 @@ class MoveRepository:
         
         move['effects'] = effects
         return move
-    
-    def get_all(self, order_by='id'):
-        """
-        Get all Moves.
-        
-        Args:
-            order_by (str): Field to order by (id, name, power, type)
-            
-        Returns:
-            list: List of Move dictionaries
-        """
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        valid_orders = ['id', 'name', 'power', 'type', 'category']
-        if order_by not in valid_orders:
-            order_by = 'id'
-        
-        cursor.execute(f'''
-            SELECT id, name, type, category, pp, power, accuracy, 
-                   causes_damage, makes_contact, priority, target_type, description
-            FROM moves 
-            ORDER BY {order_by}
-        ''')
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [
-            {
-                'id': row[0],
-                'name': row[1],
-                'type': row[2],
-                'category': row[3],
-                'pp': row[4],
-                'power': row[5],
-                'accuracy': row[6],
-                'causes_damage': row[7],
-                'makes_contact': row[8],
-                'priority': row[9],
-                'target_type': row[10],
-                'description': row[11]
-            }
-            for row in rows
-        ]
-    
-    def search_by_type(self, move_type):
-        """
-        Search Moves by type.
-        
-        Args:
-            move_type (str): The type to search for
-            
-        Returns:
-            list: List of Moves with that type
-        """
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT id, name, type, category, pp, power, accuracy, 
-                   causes_damage, makes_contact, priority, target_type, description
-            FROM moves 
-            WHERE type = ?
-            ORDER BY name
-        ''', (move_type,))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [
-            {
-                'id': row[0],
-                'name': row[1],
-                'type': row[2],
-                'category': row[3],
-                'pp': row[4],
-                'power': row[5],
-                'accuracy': row[6],
-                'causes_damage': row[7],
-                'makes_contact': row[8],
-                'priority': row[9],
-                'target_type': row[10],
-                'description': row[11]
-            }
-            for row in rows
-        ]
-    
+
+    # endregion Getters
+
     def search_by_category(self, category):
         """
         Search Moves by category (Physical, Special, Status).
@@ -458,18 +461,87 @@ class MoveRepository:
             for row in rows
         ]
 
+    def search_by_type(self, move_type):
+        """
+        Search Moves by type.
+        
+        Args:
+            move_type (str): The type to search for
+            
+        Returns:
+            list: List of Moves with that type
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, name, type, category, pp, power, accuracy, 
+                   causes_damage, makes_contact, priority, target_type, description
+            FROM moves 
+            WHERE type = ?
+            ORDER BY name
+        ''', (move_type,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [
+            {
+                'id': row[0],
+                'name': row[1],
+                'type': row[2],
+                'category': row[3],
+                'pp': row[4],
+                'power': row[5],
+                'accuracy': row[6],
+                'causes_damage': row[7],
+                'makes_contact': row[8],
+                'priority': row[9],
+                'target_type': row[10],
+                'description': row[11]
+            }
+            for row in rows
+        ]
+
 
 class EffectRepository:
     """Repository for Effect data access"""
-    
+
     def __init__(self, db_path="data/pokemon_battle.db"):
         self.db_manager = DatabaseManager(db_path)
         self.db_path = db_path
-    
-    def get_connection(self):
-        """Get database connection"""
-        return self.db_manager.get_connection()
-    
+
+    # *** PUBLIC ***
+    # region Getters
+
+    def get_all(self):
+        """
+        Get all Effects.
+        
+        Returns:
+            list: List of Effect dictionaries
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, name, description
+            FROM move_effects 
+            ORDER BY name
+        ''')
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [
+            {
+                'id': row[0],
+                'name': row[1],
+                'description': row[2]
+            }
+            for row in rows
+        ]
+
     def get_by_id(self, effect_id):
         """
         Get an Effect by its ID.
@@ -500,7 +572,11 @@ class EffectRepository:
             'name': row[1],
             'description': row[2]
         }
-    
+
+    def get_connection(self):
+        """Get database connection"""
+        return self.db_manager.get_connection()
+
     def get_effects_for_move(self, move_id):
         """
         Get all effects for a specific move.
@@ -534,35 +610,7 @@ class EffectRepository:
             }
             for row in rows
         ]
-    
-    def get_all(self):
-        """
-        Get all Effects.
-        
-        Returns:
-            list: List of Effect dictionaries
-        """
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT id, name, description
-            FROM move_effects 
-            ORDER BY name
-        ''')
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [
-            {
-                'id': row[0],
-                'name': row[1],
-                'description': row[2]
-            }
-            for row in rows
-        ]
-    
+
     def get_moves_with_effect(self, effect_id):
         """
         Get all moves that have a specific effect.
@@ -602,12 +650,13 @@ class EffectRepository:
             for row in rows
         ]
 
+    # endregion Getters
 
-# Convenience functions for quick access
-def get_pokemon(pokemon_id):
-    """Quick function to get a Pokemon by ID"""
-    repo = PokemonRepository()
-    return repo.get_by_id(pokemon_id)
+
+def get_effect(effect_id):
+    """Quick function to get an Effect by ID"""
+    repo = EffectRepository()
+    return repo.get_by_id(effect_id)
 
 
 def get_move(move_id, with_effects=True):
@@ -618,10 +667,11 @@ def get_move(move_id, with_effects=True):
     return repo.get_by_id(move_id)
 
 
-def get_effect(effect_id):
-    """Quick function to get an Effect by ID"""
-    repo = EffectRepository()
-    return repo.get_by_id(effect_id)
+# Convenience functions for quick access
+def get_pokemon(pokemon_id):
+    """Quick function to get a Pokemon by ID"""
+    repo = PokemonRepository()
+    return repo.get_by_id(pokemon_id)
 
 
 # Example usage and testing

@@ -3,18 +3,21 @@ import os
 from pathlib import Path
 
 class DatabaseManager:
+
     def __init__(self, db_path="data/pokemon_battle.db"):
         self.db_path = db_path
         self.ensure_data_directory()
-        
+
+    # *** PUBLIC ***
+
     def ensure_data_directory(self):
         """Create data directory if it doesn't exist"""
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-    
+
     def get_connection(self):
         """Get database connection"""
         return sqlite3.connect(self.db_path)
-    
+
     def initialize_database(self):
         """Create all tables and insert initial data"""
         # Remove existing database file to start fresh
@@ -60,6 +63,8 @@ class DatabaseManager:
         print("✅ Database structure initialized successfully!")
         print("⚠️  Note: Pokemon, learnsets, and evolutions need to be added separately.")
         print("   Run: pokemon_db = PokemonDataManager(); pokemon_db.initialize_pokemon_data()")
+
+    # *** PRIVATE ***
 
     def _create_tables(self, cursor):
         """Create all tables"""
@@ -196,32 +201,788 @@ class DatabaseManager:
         )
         ''')
 
-    def _insert_types(self, cursor):
-        """Insert all Pokemon types"""
-        types = [
-            (1, 'Normal'),
-            (2, 'Fire'),
-            (3, 'Water'),
-            (4, 'Electric'),
-            (5, 'Grass'),
-            (6, 'Ice'),
-            (7, 'Fighting'),
-            (8, 'Poison'),
-            (9, 'Ground'),
-            (10, 'Flying'),
-            (11, 'Psychic'),
-            (12, 'Bug'),
-            (13, 'Rock'),
-            (14, 'Ghost'),
-            (15, 'Dragon'),
-            (16, 'Dark'),
-            (17, 'Steel'),
-            (18, 'Fairy')
-        ]
-        
-        cursor.executemany('INSERT INTO types (id, name) VALUES (?, ?)', types)
-        print(f"Successfully inserted {len(types)} types")
+    def _get_effect_id(self, cursor, effect_name):
+        """Helper to get effect ID by name"""
+        cursor.execute("SELECT id FROM move_effects WHERE name = ?", (effect_name,))
+        result = cursor.fetchone()
+        return result[0] if result else None
+    # region Data insertion
 
+    def _insert_move_effect_instances(self, cursor):
+        """Link ALL moves to their effects"""
+        effect_instances = []
+
+        # Helper to find effect ID by name
+        def get_effect_id(name):
+            cursor.execute('SELECT id FROM move_effects WHERE name = ?', (name,))
+            res = cursor.fetchone()
+            return res[0] if res else None
+
+        # Helper to find move ID by name
+        def get_move_id(name):
+            cursor.execute('SELECT id FROM moves WHERE name = ?', (name,))
+            res = cursor.fetchone()
+            return res[0] if res else None
+
+        print('Linking move effects...')
+        # Move Effects Map
+        effects_map = {
+            'Absorb': [('Drain 50%', 100, 1, 'OnHit')],
+            'Accelerock': [('Priority +1', 100, 1, 'OnHit')],
+            'Acid': [('Lower Defense 1', 10, 1, 'OnHit'), ('Lower SpDefense 1', 10, 1, 'OnHit')],
+            'Acid Armor': [('Raise Defense 2', 100, 1, 'OnHit')],
+            'Acid Spray': [('Lower SpDefense 2', 100, 2, 'OnHit')],
+            'Acrobatics': [('Item Dependent', 100, 1, 'OnHit')],
+            'Aerial Ace': [('Never Miss', 100, 1, 'OnHit')],
+            'Agility': [('Raise Speed 2', 100, 1, 'OnHit')],
+            'Air Slash': [('Flinch', 30, 2, 'OnHit')],
+            'Amnesia': [('Raise SpDefense 2', 100, 1, 'OnHit')],
+            'Anchor Shot': [('Prevent Switching', 100, 2, 'OnHit')],
+            'Ancient Power': [('Raise All Stats 1', 10, 2, 'OnHit')],
+            'Apple Acid': [('Lower SpDefense 1', 100, 2, 'OnHit')],
+            'Aqua Jet': [('Priority +1', 100, 1, 'OnHit')],
+            'Aqua Ring': [('Aqua Ring', 100, 1, 'OnHit')],
+            'Aromatherapy': [('Cure Status', 100, 1, 'OnHit')],
+            'Astral Barrage': [('Flinch', 20, 2, 'OnHit')],
+            'Attack Order': [('Always Crit', 100, 1, 'OnHit')],
+            'Aura Sphere': [('Never Miss', 100, 1, 'OnHit')],
+            'Aura Wheel': [('Raise Speed 1', 100, 2, 'OnHit')],
+            'Aurora Beam': [('Lower Attack 1', 10, 2, 'OnHit')],
+            'Aurora Veil': [('Aurora Veil', 100, 1, 'OnHit')],
+            'Baby-Doll Eyes': [('Priority +1', 100, 1, 'OnHit'), ('Lower Attack 1', 100, 2, 'OnHit')],
+            'Baneful Bunker': [('Protect', 100, 1, 'OnHit'), ('Poison 100%', 100, 2, 'OnHit')],
+            'Barrage': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Barrier': [('Raise Defense 2', 100, 1, 'OnHit')],
+            'Baton Pass': [('Baton Pass', 100, 1, 'OnHit')],
+            'Bind': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
+            'Bite': [('Flinch', 30, 2, 'OnHit')],
+            'Blast Burn': [('Recharge Turn', 100, 2, 'OnHit')],
+            'Blizzard': [('Freeze 10%', 10, 2, 'OnHit')],
+            'Blue Flare': [('Burn 20%', 20, 2, 'OnHit')],
+            'Body Press': [('Stat Dependent Damage', 100, 1, 'OnHit')],
+            'Body Slam': [('Paralysis 30%', 30, 2, 'OnHit')],
+            'Bolt Beak': [('Speed Dependent', 100, 1, 'OnHit')],
+            'Bolt Strike': [('Paralysis 20%', 20, 2, 'OnHit')],
+            'Bone Club': [('Flinch', 10, 2, 'OnHit')],
+            'Bone Rush': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Bonemerang': [('Multi Hit 2', 100, 1, 'OnHit')],
+            'Bounce': [('Paralysis 30%', 30, 2, 'OnHit')],
+            'Brave Bird': [('Recoil 33%', 100, 2, 'OnHit')],
+            'Breaking Swipe': [('Lower Attack 1', 100, 2, 'OnHit')],
+            'Brine': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Bubble': [('Lower Speed 1', 10, 1, 'OnHit')],
+            'Bubble Beam': [('Lower Speed 1', 10, 2, 'OnHit')],
+            'Bug Buzz': [('Lower SpDefense 1', 10, 2, 'OnHit')],
+            'Bulk Up': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Defense 1', 100, 2, 'OnHit')],
+            'Bulldoze': [('Lower Speed 1', 100, 2, 'OnHit')],
+            'Bullet Punch': [('Priority +1', 100, 1, 'OnHit')],
+            'Bullet Seed': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Burn Up': [('Change Type Fire Remove', 100, 2, 'OnHit')],
+            'Calm Mind': [('Raise SpAttack 1', 100, 1, 'OnHit'), ('Raise SpDefense 1', 100, 2, 'OnHit')],
+            'Chatter': [('Confusion 100%', 100, 2, 'OnHit')],
+            'Circle Throw': [('Force Switch', 100, 2, 'OnHit')],
+            'Clamp': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
+            'Clanging Scales': [('Lower Defense 1', 100, 2, 'OnHit')],
+            'Clear Smog': [('Clear Stats', 100, 2, 'OnHit')],
+            'Close Combat': [('Lower Defense 1', 100, 2, 'OnHit'), ('Lower SpDefense 1', 100, 2, 'OnHit')],
+            'Coaching': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Defense 1', 100, 2, 'OnHit')],
+            'Coil': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Defense 1', 100, 2, 'OnHit'), ('Raise Accuracy 1', 100, 3, 'OnHit')],
+            'Comet Punch': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Confuse Ray': [('Confusion 100%', 100, 1, 'OnHit')],
+            'Confusion': [('Confusion', 10, 2, 'OnHit')],
+            'Constrict': [('Lower Speed 1', 10, 1, 'OnHit')],
+            'Core Enforcer': [('Nullify Ability', 100, 2, 'OnHit')],
+            'Cotton Guard': [('Raise Defense 2', 100, 1, 'OnHit')],
+            'Court Change': [('Court Change', 100, 1, 'OnHit')],
+            'Crabhammer': [('Always Crit', 100, 1, 'OnHit')],
+            'Cross Chop': [('Always Crit', 100, 1, 'OnHit')],
+            'Cross Poison': [('Always Crit', 100, 1, 'OnHit'), ('Poison 10%', 10, 2, 'OnHit')],
+            'Crunch': [('Lower Defense 1', 20, 2, 'OnHit')],
+            'Dark Pulse': [('Flinch', 20, 2, 'OnHit')],
+            'Darkest Lariat': [('Ignore Stat Changes', 100, 1, 'OnHit')],
+            'Decorate': [('Raise Attack 2', 100, 1, 'OnHit'), ('Raise SpAttack 2', 100, 2, 'OnHit')],
+            'Defend Order': [('Raise Defense 1', 100, 1, 'OnHit'), ('Raise SpDefense 1', 100, 2, 'OnHit')],
+            'Defense Curl': [('Raise Defense 1', 100, 1, 'OnHit')],
+            'Detect': [('Protect', 100, 1, 'OnHit')],
+            'Diamond Storm': [('Raise Defense 1', 50, 2, 'OnHit')],
+            'Disable': [('Disable', 100, 1, 'OnHit')],
+            'Discharge': [('Paralysis 30%', 30, 2, 'OnHit')],
+            'Dizzy Punch': [('Confusion 10%', 10, 1, 'OnHit')],
+            'Double Iron Bash': [('Multi Hit 2', 100, 1, 'OnHit'), ('Flinch', 30, 2, 'OnHit')],
+            'Double Kick': [('Multi Hit 2', 100, 1, 'OnHit')],
+            'Double Slap': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Double Team': [('Raise Evasion 1', 100, 1, 'OnHit')],
+            'Double-Edge': [('Recoil 25%', 100, 1, 'OnHit')],
+            'Draco Meteor': [('Lower SpAttack 2', 100, 2, 'OnHit')],
+            'Dragon Ascent': [('Lower Defense 1', 100, 2, 'OnHit'), ('Lower SpDefense 1', 100, 2, 'OnHit')],
+            'Dragon Breath': [('Paralysis 30%', 30, 2, 'OnHit')],
+            'Dragon Dance': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Speed 1', 100, 2, 'OnHit')],
+            'Dragon Darts': [('Multi Hit 2', 100, 1, 'OnHit')],
+            'Dragon Energy': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Dragon Rush': [('Flinch', 20, 2, 'OnHit')],
+            'Dragon Tail': [('Force Switch', 100, 2, 'OnHit')],
+            'Drain Punch': [('Drain 50%', 100, 2, 'OnHit')],
+            'Draining Kiss': [('Drain 75%', 100, 2, 'OnHit')],
+            'Dream Eater': [('Drain 50%', 100, 2, 'OnHit')],
+            'Drum Beating': [('Lower Speed 1', 100, 2, 'OnHit')],
+            'Dual Chop': [('Multi Hit 2', 100, 1, 'OnHit')],
+            'Dual Wingbeat': [('Multi Hit 2', 100, 1, 'OnHit')],
+            'Dynamic Punch': [('Confusion 100%', 100, 2, 'OnHit')],
+            'Earth Power': [('Lower SpDefense 1', 10, 2, 'OnHit')],
+            'Electric Terrain': [('Electric Terrain', 100, 1, 'OnHit')],
+            'Electro Ball': [('Speed Dependent', 100, 1, 'OnHit')],
+            'Ember': [('Burn 10%', 10, 2, 'OnHit')],
+            'Encore': [('Encore', 100, 1, 'OnHit')],
+            'Energy Ball': [('Lower SpDefense 1', 10, 2, 'OnHit')],
+            'Eternabeam': [('Recharge Turn', 100, 2, 'OnHit')],
+            'Expanding Force': [('Terrain Dependent', 100, 1, 'OnHit')],
+            'Extreme Speed': [('Priority +1', 100, 1, 'OnHit')],
+            'Fake Out': [('Flinch', 100, 1, 'OnHit')],
+            'False Surrender': [('Never Miss', 100, 1, 'OnHit')],
+            'Feather Dance': [('Lower Attack 2', 100, 1, 'OnHit')],
+            'Feint': [('Ignore Protection', 100, 1, 'OnHit'), ('Priority +1', 100, 2, 'OnHit')],
+            'Fell Stinger': [('Raise Attack 2', 100, 2, 'OnHit')],
+            'Fiery Wrath': [('Flinch', 20, 2, 'OnHit')],
+            'Fire Blast': [('Burn 10%', 10, 2, 'OnHit')],
+            'Fire Fang': [('Burn 10%', 10, 2, 'OnHit'), ('Flinch', 10, 3, 'OnHit')],
+            'Fire Lash': [('Lower Defense 1', 100, 2, 'OnHit')],
+            'Fire Punch': [('Burn 10%', 10, 2, 'OnHit')],
+            'Fire Spin': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
+            'First Impression': [('Priority +2', 100, 1, 'OnHit')],
+            'Fishious Rend': [('Speed Dependent', 100, 1, 'OnHit')],
+            'Fissure': [('OHKO', 30, 1, 'OnHit')],
+            'Flame Charge': [('Raise Speed 1', 100, 2, 'OnHit')],
+            'Flamethrower': [('Burn 10%', 10, 2, 'OnHit')],
+            'Flare Blitz': [('Recoil 33%', 100, 2, 'OnHit')],
+            'Flash': [('Lower Accuracy 1', 100, 1, 'OnHit')],
+            'Flash Cannon': [('Lower SpDefense 1', 10, 2, 'OnHit')],
+            'Fleur Cannon': [('Lower SpAttack 2', 100, 2, 'OnHit')],
+            'Flip Turn': [('Switch Out', 100, 2, 'OnHit')],
+            'Focus Blast': [('Lower SpDefense 1', 10, 2, 'OnHit')],
+            'Forests Curse': [('Change Type Grass', 100, 1, 'OnHit')],
+            'Foul Play': [('Use Target Attack', 100, 1, 'OnHit')],
+            'Freeze Shock': [('Paralysis 30%', 30, 2, 'OnHit')],
+            'Freezing Glare': [('Freeze 10%', 10, 2, 'OnHit')],
+            'Frost Breath': [('Always Crit', 100, 1, 'OnHit')],
+            'Fury Attack': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Fury Swipes': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Fusion Bolt': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Gear Grind': [('Multi Hit 2', 100, 1, 'OnHit')],
+            'Giga Impact': [('Recharge Turn', 100, 2, 'OnHit')],
+            'Glacial Lance': [('Freeze 10%', 10, 2, 'OnHit')],
+            'Glare': [('Paralysis 100%', 100, 1, 'OnHit')],
+            'Grassy Glide': [('Priority +1', 100, 1, 'OnHit')],
+            'Grassy Terrain': [('Grassy Terrain', 100, 1, 'OnHit')],
+            'Grav Apple': [('Lower Defense 1', 100, 2, 'OnHit')],
+            'Growl': [('Lower Attack 1', 100, 1, 'OnHit')],
+            'Growth': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise SpAttack 1', 100, 1, 'OnHit')],
+            'Guillotine': [('OHKO', 30, 1, 'OnHit')],
+            'Gunk Shot': [('Poison 30%', 30, 2, 'OnHit')],
+            'Hail': [('Set Hail', 100, 1, 'OnHit')],
+            'Harden': [('Raise Defense 1', 100, 1, 'OnHit')],
+            'Haze': [('Haze', 100, 1, 'OnHit')],
+            'Head Smash': [('Recoil 50%', 100, 2, 'OnHit')],
+            'Headbutt': [('Flinch', 30, 2, 'OnHit')],
+            'Heal Bell': [('Cure Status', 100, 1, 'OnHit')],
+            'Heal Order': [('Heal 50%', 100, 1, 'OnHit')],
+            'Heart Stamp': [('Flinch', 30, 2, 'OnHit')],
+            'Heat Wave': [('Burn 10%', 10, 2, 'OnHit')],
+            'Hone Claws': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Accuracy 1', 100, 2, 'OnHit')],
+            'Horn Drill': [('OHKO', 30, 1, 'OnHit')],
+            'Horn Leech': [('Drain 50%', 100, 2, 'OnHit')],
+            'Hurricane': [('Confusion', 30, 2, 'OnHit')],
+            'Hyper Beam': [('Recharge Turn', 100, 2, 'OnHit')],
+            'Hyper Fang': [('Flinch 30%', 30, 1, 'OnHit')],
+            'Hyperspace Fury': [('Ignore Protection', 100, 1, 'OnHit'), ('Lower Defense 1', 100, 2, 'OnHit')],
+            'Hyperspace Hole': [('Never Miss', 100, 1, 'OnHit'), ('Ignore Protection', 100, 1, 'OnHit')],
+            'Hypnosis': [('Sleep', 100, 1, 'OnHit')],
+            'Ice Beam': [('Freeze 10%', 10, 2, 'OnHit')],
+            'Ice Burn': [('Burn 30%', 30, 2, 'OnHit')],
+            'Ice Punch': [('Freeze 10%', 10, 2, 'OnHit')],
+            'Ice Shard': [('Priority +1', 100, 1, 'OnHit')],
+            'Icicle Crash': [('Flinch', 30, 2, 'OnHit')],
+            'Icicle Spear': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Incinerate': [('Item Dependent', 100, 2, 'OnHit')],
+            'Infernal Parade': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Inferno': [('Burn 100%', 100, 2, 'OnHit')],
+            'Ingrain': [('Ingrain', 100, 1, 'OnHit')],
+            'Iron Defense': [('Raise Defense 2', 100, 1, 'OnHit')],
+            'Iron Head': [('Flinch', 30, 2, 'OnHit')],
+            'Jaw Lock': [('Prevent Switching', 100, 2, 'OnHit')],
+            'Jungle Healing': [('Heal 25%', 100, 1, 'OnHit'), ('Cure Status', 100, 2, 'OnHit')],
+            'Karate Chop': [('Always Crit', 100, 1, 'OnHit')],
+            'Kinesis': [('Lower Accuracy 1', 100, 1, 'OnHit')],
+            'Kings Shield': [('Protect', 100, 1, 'OnHit'), ('Lower Attack 1', 100, 2, 'OnHit')],
+            'Knock Off': [('Remove Item', 100, 2, 'OnHit')],
+            'Leaf Blade': [('Always Crit', 100, 1, 'OnHit')],
+            'Leaf Storm': [('Lower SpAttack 2', 100, 2, 'OnHit')],
+            'Leech Life': [('Drain 50%', 100, 2, 'OnHit')],
+            'Leech Seed': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
+            'Leer': [('Lower Defense 1', 100, 1, 'OnHit')],
+            'Lick': [('Paralysis 30%', 30, 2, 'OnHit')],
+            'Life Dew': [('Heal 25%', 100, 1, 'OnHit')],
+            'Light That Burns The Sky': [('Stat Dependent Damage', 100, 1, 'OnHit')],
+            'Liquidation': [('Lower Defense 1', 20, 2, 'OnHit')],
+            'Lovely Kiss': [('Sleep 100%', 100, 1, 'OnHit')],
+            'Lunge': [('Lower Attack 1', 100, 2, 'OnHit')],
+            'Luster Purge': [('Lower SpDefense 1', 50, 2, 'OnHit')],
+            'Mach Punch': [('Priority +1', 100, 1, 'OnHit')],
+            'Magic Coat': [('Remove Hazards', 100, 1, 'OnHit'), ('Lower Accuracy 1', 100, 2, 'OnHit')],
+            'Magnet Bomb': [('Never Miss', 100, 1, 'OnHit')],
+            'Magnetic Flux': [('Raise Defense 1', 100, 1, 'OnHit'), ('Raise SpDefense 1', 100, 2, 'OnHit')],
+            'Magnitude': [('Variable Power', 100, 1, 'OnHit')],
+            'Meditate': [('Raise Attack 1', 100, 1, 'OnHit')],
+            'Mega Drain': [('Drain 50%', 100, 1, 'OnHit')],
+            'Metal Claw': [('Raise Attack 1', 10, 2, 'OnHit')],
+            'Meteor Beam': [('Raise SpAttack 1', 100, 2, 'OnHit')],
+            'Meteor Mash': [('Raise Attack 1', 20, 2, 'OnHit')],
+            'Milk Drink': [('Heal 50%', 100, 1, 'OnHit')],
+            'Mind Blown': [('Self HP Cost 50%', 100, 2, 'OnHit')],
+            'Minimize': [('Raise Evasion 2', 100, 1, 'OnHit')],
+            'Mirror Shot': [('Lower Accuracy 1', 30, 2, 'OnHit')],
+            'Mist': [('Mist', 100, 1, 'OnHit')],
+            'Mist Ball': [('Lower SpAttack 1', 50, 2, 'OnHit')],
+            'Misty Explosion': [('Self HP Cost 50%', 100, 2, 'OnHit')],
+            'Misty Terrain': [('Misty Terrain', 100, 1, 'OnHit')],
+            'Moonblast': [('Lower SpAttack 1', 30, 2, 'OnHit')],
+            'Moongeist Beam': [('Ignore Protection', 100, 1, 'OnHit'), ('Nullify Ability', 100, 1, 'OnHit')],
+            'Moonlight': [('Heal 50%', 100, 1, 'OnHit')],
+            'Morning Sun': [('Heal 50%', 100, 1, 'OnHit')],
+            'Mud Bomb': [('Lower Accuracy 1', 30, 2, 'OnHit')],
+            'Mud Shot': [('Lower Speed 1', 100, 2, 'OnHit')],
+            'Mud Slap': [('Lower Accuracy 1', 100, 2, 'OnHit')],
+            'Mystical Fire': [('Lower SpAttack 1', 100, 2, 'OnHit')],
+            'Nasty Plot': [('Raise SpAttack 2', 100, 1, 'OnHit')],
+            'Nature Madness': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Needle Arm': [('Flinch', 30, 2, 'OnHit')],
+            'Night Slash': [('Always Crit', 100, 1, 'OnHit')],
+            'No Retreat': [('Raise All Stats 1', 100, 1, 'OnHit'), ('Prevent Switching', 100, 2, 'OnHit')],
+            'Nuzzle': [('Paralysis 100%', 100, 2, 'OnHit')],
+            'Oblivion Wing': [('Drain 75%', 100, 2, 'OnHit')],
+            'Obstruct': [('Protect', 100, 1, 'OnHit'), ('Lower Defense 1', 100, 2, 'OnHit')],
+            'Octazooka': [('Lower Accuracy 1', 50, 2, 'OnHit')],
+            'Ominous Wind': [('Raise All Stats 1', 10, 2, 'OnHit')],
+            'Origin Pulse': [('Burn 10%', 10, 2, 'OnHit')],
+            'Overheat': [('Lower SpAttack 2', 100, 2, 'OnHit')],
+            'Parabolic Charge': [('Drain 50%', 100, 2, 'OnHit')],
+            'Parting Shot': [('Lower Attack 1', 100, 1, 'OnHit'), ('Lower SpAttack 1', 100, 2, 'OnHit'), ('Switch Out', 100, 3, 'OnHit')],
+            'Petal Dance': [('Confusion 10%', 10, 1, 'OnHit')],
+            'Photon Geyser': [('Stat Dependent Damage', 100, 1, 'OnHit')],
+            'Pin Missile': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Plasma Fists': [('Change Type Normal to Electric', 100, 1, 'OnHit')],
+            'Play Nice': [('Lower Attack 1', 100, 1, 'OnHit')],
+            'Play Rough': [('Lower Attack 1', 10, 2, 'OnHit')],
+            'Poison Gas': [('Poison 90%', 90, 1, 'OnHit')],
+            'Poison Jab': [('Poison 30%', 30, 2, 'OnHit')],
+            'Poison Powder': [('Poison 75%', 75, 1, 'OnHit')],
+            'Poison Sting': [('Poison 30%', 30, 2, 'OnHit')],
+            'Poison Tail': [('Always Crit', 100, 1, 'OnHit'), ('Poison 10%', 10, 2, 'OnHit')],
+            'Poltergeist': [('Item Dependent', 100, 1, 'OnHit')],
+            'Powder Snow': [('Freeze 10%', 10, 2, 'OnHit')],
+            'Power Whip': [('Recoil 25%', 25, 2, 'OnHit')],
+            'Precipice Blades': [('Flinch', 10, 2, 'OnHit')],
+            'Prismatic Laser': [('Recharge Turn', 100, 2, 'OnHit')],
+            'Protect': [('Protect', 100, 1, 'OnHit')],
+            'Psybeam': [('Confusion', 10, 2, 'OnHit')],
+            'Psych Up': [('Copy Stat Stages', 100, 1, 'OnHit')],
+            'Psychic': [('Lower SpDefense 1', 10, 2, 'OnHit')],
+            'Psychic Terrain': [('Psychic Terrain', 100, 1, 'OnHit')],
+            'Psycho Boost': [('Lower SpAttack 2', 100, 2, 'OnHit')],
+            'Psystrike': [('Stat Dependent Damage', 100, 1, 'OnHit')],
+            'Pursuit': [('Pursuit Damage', 100, 1, 'OnHit')],
+            'Pyro Ball': [('Burn 10%', 10, 2, 'OnHit')],
+            'Quick Attack': [('Priority +1', 100, 1, 'OnHit')],
+            'Quiver Dance': [('Raise SpAttack 1', 100, 1, 'OnHit'), ('Raise SpDefense 1', 100, 2, 'OnHit'), ('Raise Speed 1', 100, 3, 'OnHit')],
+            'Rage': [('Raise Attack 1', 10, 1, 'OnHit')],
+            'Rain Dance': [('Set Rain', 100, 1, 'OnHit')],
+            'Rapid Spin': [('Remove Hazards', 100, 1, 'OnHit'), ('Raise Speed 1', 100, 2, 'OnHit')],
+            'Razor Leaf': [('High Crit 1', 100, 1, 'OnHit')],
+            'Razor Shell': [('Lower Defense 1', 50, 2, 'OnHit')],
+            'Recover': [('Heal 50%', 100, 1, 'OnHit')],
+            'Rest': [('Sleep', 100, 1, 'OnHit'), ('Heal 50%', 100, 2, 'OnHit')],
+            'Revenge': [('Speed Dependent', 100, 1, 'OnHit')],
+            'Rising Voltage': [('Terrain Dependent', 100, 1, 'OnHit')],
+            'Roar': [('Force Switch', 100, 1, 'OnHit')],
+            'Roar of Time': [('Recharge Turn', 100, 2, 'OnHit')],
+            'Rock Blast': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Rock Polish': [('Raise Speed 2', 100, 1, 'OnHit')],
+            'Rock Slide': [('Flinch', 30, 2, 'OnHit')],
+            'Rock Wrecker': [('Recharge Turn', 100, 2, 'OnHit')],
+            'Rolling Kick': [('Flinch 30%', 30, 1, 'OnHit')],
+            'Roost': [('Heal 50%', 100, 1, 'OnHit')],
+            'Sacred Fire': [('Burn 50%', 50, 2, 'OnHit')],
+            'Safeguard': [('Safeguard', 100, 1, 'OnHit')],
+            'Sand Attack': [('Lower Accuracy 1', 100, 1, 'OnHit')],
+            'Sand Tomb': [('Trap 4-5 Turns', 100, 2, 'OnHit')],
+            'Sandstorm': [('Set Sandstorm', 100, 1, 'OnHit')],
+            'Scald': [('Burn 30%', 30, 2, 'OnHit')],
+            'Scale Shot': [('Multi Hit 2-5', 100, 1, 'OnHit'), ('Raise Speed 1', 100, 2, 'OnHit'), ('Lower Defense 1', 100, 3, 'OnHit')],
+            'Screech': [('Lower Defense 2', 100, 1, 'OnHit')],
+            'Secret Sword': [('Stat Dependent Damage', 100, 1, 'OnHit')],
+            'Seed Flare': [('Lower SpDefense 2', 40, 2, 'OnHit')],
+            'Shadow Ball': [('Lower SpDefense 1', 20, 2, 'OnHit')],
+            'Shadow Bone': [('Lower Defense 1', 20, 2, 'OnHit')],
+            'Shadow Sneak': [('Priority +1', 100, 1, 'OnHit')],
+            'Sharpen': [('Raise Attack 1', 100, 1, 'OnHit')],
+            'Sheer Cold': [('OHKO', 30, 1, 'OnHit')],
+            'Shell Side Arm': [('Stat Dependent Damage', 100, 1, 'OnHit')],
+            'Shell Smash': [('Raise Attack 2', 100, 1, 'OnHit'), ('Raise SpAttack 2', 100, 2, 'OnHit'), ('Raise Speed 2', 100, 3, 'OnHit'), ('Lower Defense 1', 100, 4, 'OnHit'), ('Lower SpDefense 1', 100, 5, 'OnHit')],
+            'Shell Trap': [('Self HP Cost 50%', 100, 2, 'OnHit')],
+            'Shift Gear': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Speed 2', 100, 2, 'OnHit')],
+            'Shore Up': [('Heal 50%', 100, 1, 'OnHit')],
+            'Signal Beam': [('Confusion', 10, 2, 'OnHit')],
+            'Silver Wind': [('Raise All Stats 1', 10, 2, 'OnHit')],
+            'Sing': [('Sleep 100%', 100, 1, 'OnHit')],
+            'Skitter Smack': [('Lower SpAttack 1', 100, 2, 'OnHit')],
+            'Skull Bash': [('Raise Attack 1', 10, 1, 'OnHit'), ('Raise Defense 1', 10, 1, 'OnHit')],
+            'Sky Attack': [('Flinch', 30, 2, 'OnHit')],
+            'Slack Off': [('Heal 50%', 100, 1, 'OnHit')],
+            'Slash': [('High Crit 1', 100, 1, 'OnHit')],
+            'Sleep Powder': [('Sleep', 100, 1, 'OnHit')],
+            'Sludge': [('Poison 30%', 30, 2, 'OnHit')],
+            'Sludge Bomb': [('Poison 30%', 30, 2, 'OnHit')],
+            'Sludge Wave': [('Poison 10%', 10, 2, 'OnHit')],
+            'Smack Down': [('Smack Down', 100, 2, 'OnHit')],
+            'Smart Strike': [('Never Miss', 100, 1, 'OnHit')],
+            'Smog': [('Poison 30%', 30, 1, 'OnHit')],
+            'Smokescreen': [('Lower Accuracy 1', 100, 1, 'OnHit')],
+            'Snap Trap': [('Trap 4-5 Turns', 100, 2, 'OnHit')],
+            'Snarl': [('Lower SpAttack 1', 100, 2, 'OnHit')],
+            'Snipe Shot': [('Always Crit', 100, 1, 'OnHit'), ('Ignore Redirection', 100, 1, 'OnHit')],
+            'Soak': [('Change Type Water', 100, 1, 'OnHit')],
+            'Soft-Boiled': [('Heal 50%', 100, 1, 'OnHit')],
+            'Spacial Rend': [('Always Crit', 100, 1, 'OnHit')],
+            'Spectral Thief': [('Steal Stat Boosts', 100, 2, 'OnHit')],
+            'Speed Swap': [('Speed Swap', 100, 1, 'OnHit')],
+            'Spike Cannon': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Spikes': [('Set Spikes', 100, 1, 'OnHit')],
+            'Spiky Shield': [('Protect', 100, 1, 'OnHit'), ('Damage Contact', 100, 2, 'OnHit')],
+            'Spirit Break': [('Lower SpAttack 1', 100, 2, 'OnHit')],
+            'Spirit Shackle': [('Prevent Switching', 100, 2, 'OnHit')],
+            'Spore': [('Sleep', 100, 1, 'OnHit')],
+            'Stealth Rock': [('Set Stealth Rock', 100, 1, 'OnHit')],
+            'Steel Beam': [('Self HP Cost 50%', 100, 2, 'OnHit')],
+            'Steel Roller': [('Terrain Dependent', 100, 1, 'OnHit')],
+            'Stomp': [('Flinch 30%', 30, 1, 'OnHit')],
+            'Stone Edge': [('Always Crit', 100, 1, 'OnHit')],
+            'Stored Power': [('Stat Boost Scaling', 100, 1, 'OnHit')],
+            'Strange Steam': [('Confusion', 20, 2, 'OnHit')],
+            'String Shot': [('Lower Speed 2', 100, 1, 'OnHit')],
+            'Stuff Cheeks': [('Raise Defense 2', 100, 1, 'OnHit')],
+            'Stun Spore': [('Paralysis 100%', 100, 1, 'OnHit')],
+            'Submission': [('Recoil 25%', 100, 1, 'OnHit')],
+            'Substitute': [('Create Substitute', 100, 1, 'OnHit')],
+            'Sunny Day': [('Set Sun', 100, 1, 'OnHit')],
+            'Sunsteel Strike': [('Nullify Ability', 100, 1, 'OnHit')],
+            'Supersonic': [('Confusion 100%', 100, 1, 'OnHit')],
+            'Surging Strikes': [('Multi Hit 3', 100, 1, 'OnHit'), ('Always Crit', 100, 1, 'OnHit')],
+            'Sweet Kiss': [('Confusion', 100, 1, 'OnHit')],
+            'Switcheroo': [('Swap Items', 100, 1, 'OnHit')],
+            'Swords Dance': [('Raise Attack 2', 100, 1, 'OnHit')],
+            'Synchronoise': [('Type Dependent', 100, 1, 'OnHit')],
+            'Synthesis': [('Heal 50%', 100, 1, 'OnHit')],
+            'Tail Glow': [('Raise SpAttack 3', 100, 1, 'OnHit')],
+            'Tail Slap': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Tail Whip': [('Lower Defense 1', 100, 1, 'OnHit')],
+            'Take Down': [('Recoil 25%', 100, 1, 'OnHit')],
+            'Tar Shot': [('Lower Speed 1', 100, 1, 'OnHit'), ('Change Type Fire Weakness', 100, 2, 'OnHit')],
+            'Teatime': [('Force Berry', 100, 1, 'OnHit')],
+            'Teleport': [('Switch Out', 100, 1, 'OnHit')],
+            'Terrain Pulse': [('Terrain Dependent', 100, 1, 'OnHit')],
+            'Thrash': [('Confusion 10%', 10, 1, 'OnHit')],
+            'Throat Chop': [('Prevent Sound Moves', 100, 2, 'OnHit')],
+            'Thunder': [('Paralysis 30%', 30, 2, 'OnHit')],
+            'Thunder Punch': [('Paralysis 10%', 10, 2, 'OnHit')],
+            'Thunder Shock': [('Paralysis 10%', 10, 1, 'OnHit')],
+            'Thunder Wave': [('Paralysis 100%', 100, 1, 'OnHit')],
+            'Thunderbolt': [('Paralysis 10%', 10, 2, 'OnHit')],
+            'Thunderous Kick': [('Lower Defense 1', 100, 2, 'OnHit')],
+            'Torment': [('Torment', 100, 1, 'OnHit')],
+            'Toxic': [('Poison 100%', 100, 1, 'OnHit')],
+            'Toxic Spikes': [('Set Toxic Spikes', 100, 1, 'OnHit')],
+            'Toxic Thread': [('Poison 100%', 100, 1, 'OnHit'), ('Lower Speed 1', 100, 2, 'OnHit')],
+            'Tri Attack': [('Paralysis 20%', 20, 2, 'OnHit'), ('Burn 20%', 20, 3, 'OnHit'), ('Freeze 20%', 20, 4, 'OnHit')],
+            'Trick': [('Swap Items', 100, 1, 'OnHit')],
+            'Trick Room': [('Trick Room', 100, 1, 'OnHit')],
+            'Trick-or-Treat': [('Change Type Ghost', 100, 1, 'OnHit')],
+            'Triple Arrows': [('Always Crit', 100, 1, 'OnHit'), ('Lower Defense 1', 30, 2, 'OnHit'), ('Flinch', 30, 3, 'OnHit')],
+            'Triple Axel': [('Multi Hit 3', 100, 1, 'OnHit')],
+            'Twineedle': [('Multi Hit 2', 100, 1, 'OnHit'), ('Poison 20%', 20, 2, 'OnHit')],
+            'Vacuum Wave': [('Priority +1', 100, 1, 'OnHit')],
+            'Venom Drench': [('Lower Attack 1', 100, 1, 'OnHit'), ('Lower SpAttack 1', 100, 2, 'OnHit'), ('Lower Speed 1', 100, 3, 'OnHit')],
+            'Venoshock': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Victory Dance': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Defense 1', 100, 2, 'OnHit'), ('Raise Speed 1', 100, 3, 'OnHit')],
+            'Volt Switch': [('Switch Out', 100, 2, 'OnHit')],
+            'Volt Tackle': [('Recoil 33%', 100, 2, 'OnHit')],
+            'Water Shuriken': [('Multi Hit 2-5', 100, 1, 'OnHit'), ('Priority +1', 100, 2, 'OnHit')],
+            'Water Spout': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Waterfall': [('Flinch', 20, 2, 'OnHit')],
+            'Weather Ball': [('Terrain Dependent', 100, 1, 'OnHit')],
+            'Whirlpool': [('Trap 4-5 Turns', 100, 2, 'OnHit')],
+            'Whirlwind': [('Force Switch', 100, 1, 'OnHit')],
+            'Wicked Blow': [('Always Crit', 100, 1, 'OnHit')],
+            'Wide Guard': [('Wide Guard', 100, 1, 'OnHit')],
+            'Wild Charge': [('Recoil 25%', 100, 2, 'OnHit')],
+            'Will-O-Wisp': [('Burn 100%', 100, 1, 'OnHit')],
+            'Wish': [('Wish', 100, 1, 'OnHit')],
+            'Withdraw': [('Raise Defense 1', 100, 1, 'OnHit')],
+            'Wood Hammer': [('Recoil 33%', 100, 2, 'OnHit')],
+            'Wrap': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
+            'Yawn': [('Yawn', 100, 1, 'OnHit')],
+            'Zap Cannon': [('Paralysis 100%', 100, 2, 'OnHit')],
+            'Zen Headbutt': [('Flinch', 20, 2, 'OnHit')],
+            'Zing Zap': [('Flinch', 30, 2, 'OnHit')],
+            # Complex Moves - Charge/Invulnerability/Special Mechanics
+            'Solar Beam': [('Charge Turn', 100, 1, 'OnHit')],
+            'Sky Attack': [('Charge Turn', 100, 1, 'OnHit'), ('Flinch', 30, 2, 'OnHit')],
+            'Razor Wind': [('Charge Turn', 100, 1, 'OnHit')],
+            'Skull Bash': [('Charge Turn', 100, 1, 'OnHit'), ('Raise Defense 1', 100, 2, 'OnHit')],
+            'Geomancy': [('Charge Turn', 100, 1, 'OnHit'), ('Raise SpAttack 2', 100, 2, 'OnHit'), ('Raise SpDefense 2', 100, 3, 'OnHit'), ('Raise Speed 2', 100, 4, 'OnHit')],
+            'Freeze Shock': [('Charge Turn', 100, 1, 'OnHit'), ('Paralysis 30%', 30, 2, 'OnHit')],
+            'Ice Burn': [('Charge Turn', 100, 1, 'OnHit'), ('Burn 30%', 30, 2, 'OnHit')],
+            'Meteor Beam': [('Charge Turn', 100, 1, 'OnHit'), ('Raise SpAttack 1', 100, 2, 'OnHit')],
+            'Dig': [('Dig', 100, 1, 'OnHit')],
+            'Fly': [('Fly', 100, 1, 'OnHit')],
+            'Bounce': [('Fly', 100, 1, 'OnHit'), ('Paralysis 30%', 30, 2, 'OnHit')],
+            'Dive': [('Dive', 100, 1, 'OnHit')],
+            'Phantom Force': [('Shadow Force', 100, 1, 'OnHit')],
+            'Shadow Force': [('Shadow Force', 100, 1, 'OnHit')],
+            'Seismic Toss': [('Fixed Damage Level', 100, 1, 'OnHit')],
+            'Night Shade': [('Fixed Damage Level', 100, 1, 'OnHit')],
+            'Super Fang': [('Fixed Damage 50% HP', 100, 1, 'OnHit')],
+            'Psywave': [('Fixed Damage Random', 100, 1, 'OnHit')],
+            'Sonic Boom': [('Fixed Damage 20', 100, 1, 'OnHit')],
+            'Dragon Rage': [('Fixed Damage 40', 100, 1, 'OnHit')],
+            'Low Kick': [('Weight Damage', 100, 1, 'OnHit')],
+            'Grass Knot': [('Weight Damage', 100, 1, 'OnHit')],
+            'Counter': [('Counter', 100, 1, 'OnHit')],
+            'Mirror Coat': [('Mirror Coat', 100, 1, 'OnHit')],
+            'Metal Burst': [('Metal Burst', 100, 1, 'OnHit')],
+            'Bide': [('Bide', 100, 1, 'OnHit')],
+            'Endeavor': [('Endeavor', 100, 1, 'OnHit')],
+            'Final Gambit': [('Final Gambit', 100, 1, 'OnHit')],
+            'Mirror Move': [('Mirror Move', 100, 1, 'OnHit')],
+            'Metronome': [('Metronome', 100, 1, 'OnHit')],
+            'Transform': [('Transform', 100, 1, 'OnHit')],
+            'Splash': [('Splash', 100, 1, 'OnHit')],
+            'Focus Energy': [('Focus Energy', 100, 1, 'OnHit')],
+            'Teleport': [('Teleport', 100, 1, 'OnHit')],
+            # Screen and Field Moves
+            'Reflect': [('Reflect', 100, 1, 'OnHit')],
+            'Light Screen': [('Light Screen', 100, 1, 'OnHit')],
+            # =====================================================
+            # ADDITIONAL MOVE EFFECTS (PokeAPI cross-reference)
+            # =====================================================
+            # --- High Crit Moves ---
+            'Aeroblast': [('High Crit 1', 100, 1, 'OnHit')],
+            'Air Cutter': [('High Crit 1', 100, 1, 'OnHit')],
+            'Drill Run': [('High Crit 1', 100, 1, 'OnHit')],
+            'Psycho Cut': [('High Crit 1', 100, 1, 'OnHit')],
+            'Shadow Claw': [('High Crit 1', 100, 1, 'OnHit')],
+            'Storm Throw': [('High Crit 1', 100, 1, 'OnHit')],
+            'Blaze Kick': [('High Crit 1', 100, 1, 'OnHit'), ('Burn 10%', 10, 2, 'OnHit')],
+            # --- Never Miss Moves ---
+            'Disarming Voice': [('Never Miss', 100, 1, 'OnHit')],
+            'Feint Attack': [('Never Miss', 100, 1, 'OnHit')],
+            'Magical Leaf': [('Never Miss', 100, 1, 'OnHit')],
+            'Shadow Punch': [('Never Miss', 100, 1, 'OnHit')],
+            'Shock Wave': [('Never Miss', 100, 1, 'OnHit')],
+            'Swift': [('Never Miss', 100, 1, 'OnHit')],
+            'Vital Throw': [('Never Miss', 100, 1, 'OnHit')],
+            'Pika Papow': [('Never Miss', 100, 1, 'OnHit')],
+            'Veevee Volley': [('Never Miss', 100, 1, 'OnHit')],
+            # --- Multi-Hit Moves ---
+            'Arm Thrust': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            'Double Hit': [('Multi Hit 2', 100, 1, 'OnHit')],
+            'Triple Kick': [('Multi Hit 3', 100, 1, 'OnHit')],
+            'Beat Up': [('Multi Hit 2-5', 100, 1, 'OnHit')],
+            # --- Stat Change Moves (User) ---
+            'Autotomize': [('Raise Speed 2', 100, 1, 'OnHit')],
+            'Cosmic Power': [('Raise Defense 1', 100, 1, 'OnHit'), ('Raise SpDefense 1', 100, 2, 'OnHit')],
+            'Gear Up': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise SpAttack 1', 100, 2, 'OnHit')],
+            'Howl': [('Raise Attack 1', 100, 1, 'OnHit')],
+            'Stockpile': [('Raise Defense 1', 100, 1, 'OnHit'), ('Raise SpDefense 1', 100, 2, 'OnHit')],
+            'Work Up': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise SpAttack 1', 100, 2, 'OnHit')],
+            'Rototiller': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise SpAttack 1', 100, 2, 'OnHit')],
+            'Aromatic Mist': [('Raise SpDefense 1', 100, 1, 'OnHit')],
+            'Flower Shield': [('Raise Defense 1', 100, 1, 'OnHit')],
+            'Steel Wing': [('Raise Defense 1', 10, 2, 'OnHit')],
+            'Charge': [('Raise SpDefense 1', 100, 1, 'OnHit')],
+            'Power-Up Punch': [('Raise Attack 1', 100, 2, 'OnHit')],
+            'Fiery Dance': [('Raise SpAttack 1', 50, 2, 'OnHit')],
+            'Charge Beam': [('Raise SpAttack 1', 70, 2, 'OnHit')],
+            # --- Stat Change Moves (Target) ---
+            'Charm': [('Lower Attack 2', 100, 1, 'OnHit')],
+            'Captivate': [('Lower SpAttack 2', 100, 1, 'OnHit')],
+            'Confide': [('Lower SpAttack 1', 100, 1, 'OnHit')],
+            'Cotton Spore': [('Lower Speed 2', 100, 1, 'OnHit')],
+            'Eerie Impulse': [('Lower SpAttack 2', 100, 1, 'OnHit')],
+            'Fake Tears': [('Lower SpDefense 2', 100, 1, 'OnHit')],
+            'Metal Sound': [('Lower SpDefense 2', 100, 1, 'OnHit')],
+            'Noble Roar': [('Lower Attack 1', 100, 1, 'OnHit'), ('Lower SpAttack 1', 100, 2, 'OnHit')],
+            'Scary Face': [('Lower Speed 2', 100, 1, 'OnHit')],
+            'Sweet Scent': [('Lower Evasion 2', 100, 1, 'OnHit')],
+            'Tearful Look': [('Lower Attack 1', 100, 1, 'OnHit'), ('Lower SpAttack 1', 100, 2, 'OnHit')],
+            'Tickle': [('Lower Attack 1', 100, 1, 'OnHit'), ('Lower Defense 1', 100, 2, 'OnHit')],
+            'Memento': [('Lower Attack 2', 100, 1, 'OnHit'), ('Lower SpAttack 2', 100, 2, 'OnHit'), ('Self Destruct', 100, 3, 'OnHit')],
+            'Crush Claw': [('Lower Defense 1', 50, 2, 'OnHit')],
+            'Iron Tail': [('Lower Defense 1', 30, 2, 'OnHit')],
+            'Leaf Tornado': [('Lower Accuracy 1', 50, 2, 'OnHit')],
+            'Mud-Slap': [('Lower Accuracy 1', 100, 2, 'OnHit')],
+            'Muddy Water': [('Lower Accuracy 1', 30, 2, 'OnHit')],
+            'Night Daze': [('Lower Accuracy 1', 40, 2, 'OnHit')],
+            'Strength Sap': [('Lower Attack 1', 100, 1, 'OnHit'), ('Heal 50%', 100, 2, 'OnHit')],
+            'Trop Kick': [('Lower Attack 1', 100, 2, 'OnHit')],
+            # --- Status Ailment Moves ---
+            'Buzzy Buzz': [('Paralysis 100%', 100, 2, 'OnHit')],
+            'Flame Wheel': [('Burn 10%', 10, 2, 'OnHit')],
+            'Force Palm': [('Paralysis 30%', 30, 2, 'OnHit')],
+            'Freeze-Dry': [('Freeze 10%', 10, 2, 'OnHit')],
+            'Ice Fang': [('Freeze 10%', 10, 2, 'OnHit'), ('Flinch 10%', 10, 3, 'OnHit')],
+            'Lava Plume': [('Burn 30%', 30, 2, 'OnHit')],
+            'Poison Fang': [('Poison 40%', 40, 2, 'OnHit')],
+            'Relic Song': [('Sleep', 10, 2, 'OnHit')],
+            'Rock Climb': [('Confusion 20%', 20, 2, 'OnHit')],
+            'Searing Shot': [('Burn 30%', 30, 2, 'OnHit')],
+            'Sizzly Slide': [('Burn 100%', 100, 2, 'OnHit')],
+            'Spark': [('Paralysis 30%', 30, 2, 'OnHit')],
+            'Splishy Splash': [('Paralysis 30%', 30, 2, 'OnHit')],
+            'Steam Eruption': [('Burn 30%', 30, 2, 'OnHit')],
+            'Thunder Fang': [('Paralysis 10%', 10, 2, 'OnHit'), ('Flinch 10%', 10, 3, 'OnHit')],
+            'Water Pulse': [('Confusion 20%', 20, 2, 'OnHit')],
+            'Dark Void': [('Sleep', 100, 1, 'OnHit')],
+            'Grass Whistle': [('Sleep', 100, 1, 'OnHit')],
+            'Teeter Dance': [('Confusion 100%', 100, 1, 'OnHit')],
+            'Swagger': [('Confusion 100%', 100, 1, 'OnHit'), ('Raise Attack 2', 100, 2, 'OnHit')],
+            'Flatter': [('Confusion 100%', 100, 1, 'OnHit'), ('Raise SpAttack 1', 100, 2, 'OnHit')],
+            'Secret Power': [('Paralysis 30%', 30, 2, 'OnHit')],
+            # --- Flinch Moves ---
+            'Astonish': [('Flinch 30%', 30, 1, 'OnHit')],
+            'Extrasensory': [('Flinch 10%', 10, 2, 'OnHit')],
+            'Floaty Fall': [('Flinch 30%', 30, 2, 'OnHit')],
+            'Snore': [('Flinch 30%', 30, 2, 'OnHit')],
+            'Steamroller': [('Flinch 30%', 30, 2, 'OnHit')],
+            'Twister': [('Flinch 20%', 20, 2, 'OnHit')],
+            'Beak Blast': [('Burn 100%', 100, 2, 'OnHit')],
+            # --- Drain / Heal Moves ---
+            'Bouncy Bubble': [('Drain 75%', 100, 1, 'OnHit')],
+            'Giga Drain': [('Drain 50%', 100, 1, 'OnHit')],
+            'Floral Healing': [('Heal 50%', 100, 1, 'OnHit')],
+            'Heal Pulse': [('Heal 50%', 100, 1, 'OnHit')],
+            'Purify': [('Cure Status', 100, 1, 'OnHit'), ('Heal 50%', 100, 2, 'OnHit')],
+            'Swallow': [('Heal 25%', 100, 1, 'OnHit')],
+            'Refresh': [('Cure Status', 100, 1, 'OnHit')],
+            'Healing Wish': [('Self Destruct', 100, 1, 'OnHit'), ('Heal 50%', 100, 2, 'OnHit')],
+            'Lunar Dance': [('Self Destruct', 100, 1, 'OnHit'), ('Heal 50%', 100, 2, 'OnHit')],
+            'Pollen Puff': [('Heal 50%', 100, 2, 'OnHit')],
+            'Sparkling Aria': [('Cure Status', 100, 2, 'OnHit')],
+            'Sparkly Swirl': [('Cure Status', 100, 2, 'OnHit')],
+            # --- Recoil Moves ---
+            'Head Charge': [('Recoil 25%', 100, 2, 'OnHit')],
+            'Light of Ruin': [('Recoil 50%', 100, 2, 'OnHit')],
+            'Struggle': [('Recoil 25%', 100, 2, 'OnHit')],
+            # --- Recharge Moves ---
+            'Frenzy Plant': [('Recharge Turn', 100, 2, 'OnHit')],
+            'Hydro Cannon': [('Recharge Turn', 100, 2, 'OnHit')],
+            # --- Speed / Priority Moves ---
+            'Ally Switch': [('Priority +2', 100, 1, 'OnHit')],
+            'Endure': [('Priority +2', 100, 1, 'OnHit')],
+            'Sucker Punch': [('Priority +1', 100, 1, 'OnHit')],
+            'Ion Deluge': [('Priority +1', 100, 1, 'OnHit')],
+            'Zippy Zap': [('High Crit 1', 100, 1, 'OnHit'), ('Priority +2', 100, 2, 'OnHit')],
+            'Follow Me': [('Priority +2', 100, 1, 'OnHit')],
+            'Rage Powder': [('Priority +2', 100, 1, 'OnHit')],
+            'Helping Hand': [('Priority +2', 100, 1, 'OnHit')],
+            'Snatch': [('Priority +2', 100, 1, 'OnHit')],
+            'Spotlight': [('Priority +2', 100, 1, 'OnHit')],
+            'Crafty Shield': [('Protect', 100, 1, 'OnHit')],
+            'Quick Guard': [('Protect', 100, 1, 'OnHit')],
+            # --- Stat Lowering on Self (Offensive) ---
+            'Superpower': [('Lower Attack 1', 100, 2, 'OnHit'), ('Lower Defense 1', 100, 3, 'OnHit')],
+            'Hammer Arm': [('Lower Speed 1', 100, 2, 'OnHit')],
+            'Ice Hammer': [('Lower Speed 1', 100, 2, 'OnHit')],
+            'V-create': [('Lower Defense 1', 100, 2, 'OnHit'), ('Lower SpDefense 1', 100, 3, 'OnHit'), ('Lower Speed 1', 100, 4, 'OnHit')],
+            # --- Speed Lowering on Target ---
+            'Electroweb': [('Lower Speed 1', 100, 2, 'OnHit')],
+            'Glaciate': [('Lower Speed 1', 100, 2, 'OnHit')],
+            'Icy Wind': [('Lower Speed 1', 100, 2, 'OnHit')],
+            'Low Sweep': [('Lower Speed 1', 100, 2, 'OnHit')],
+            'Rock Tomb': [('Lower Speed 1', 100, 2, 'OnHit')],
+            'Rock Smash': [('Lower Defense 1', 50, 2, 'OnHit')],
+            'Struggle Bug': [('Lower SpAttack 1', 100, 2, 'OnHit')],
+            # --- Defog and Hazard Removal ---
+            'Defog': [('Lower Evasion 1', 100, 1, 'OnHit'), ('Remove Hazards', 100, 2, 'OnHit')],
+            'Psychic Fangs': [('Remove Hazards', 100, 2, 'OnHit')],
+            'Brick Break': [('Remove Hazards', 100, 1, 'OnHit')],
+            # --- Switch / U-turn Moves ---
+            'U-turn': [('Switch Out', 100, 2, 'OnHit')],
+            # --- Trap / Prevent Switching ---
+            'Block': [('Prevent Switching', 100, 1, 'OnHit')],
+            'Mean Look': [('Prevent Switching', 100, 1, 'OnHit')],
+            'Spider Web': [('Prevent Switching', 100, 1, 'OnHit')],
+            'Fairy Lock': [('Prevent Switching', 100, 1, 'OnHit')],
+            'Thousand Waves': [('Prevent Switching', 100, 2, 'OnHit')],
+            'Infestation': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
+            'Magma Storm': [('Trap 4-5 Turns', 100, 2, 'OnHit')],
+            # --- Damage Modifier Moves ---
+            'Assurance': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Avalanche': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Facade': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Hex': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Payback': [('Speed Dependent', 100, 1, 'OnHit')],
+            'Retaliate': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Rollout': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Round': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Smelling Salts': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Stomping Tantrum': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Wake-Up Slap': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Fury Cutter': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Ice Ball': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Echoed Voice': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Fusion Flare': [('Damage Doubling', 100, 1, 'OnHit')],
+            'Gyro Ball': [('Speed Dependent', 100, 1, 'OnHit')],
+            # --- HP Scaling / Variable Power ---
+            'Eruption': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Flail': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Reversal': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Crush Grip': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Wring Out': [('HP Scaling High', 100, 1, 'OnHit')],
+            'Power Trip': [('Stat Boost Scaling', 100, 1, 'OnHit')],
+            'Punishment': [('Stat Boost Scaling', 100, 1, 'OnHit')],
+            "Nature's Madness": [('Fixed Damage 50% HP', 100, 1, 'OnHit')],
+            'Heat Crash': [('Weight Damage', 100, 1, 'OnHit')],
+            'Heavy Slam': [('Weight Damage', 100, 1, 'OnHit')],
+            # --- Variable Power / Special Mechanics ---
+            'Hidden Power': [('Variable Power', 100, 1, 'OnHit')],
+            'Judgment': [('Variable Power', 100, 1, 'OnHit')],
+            'Techno Blast': [('Variable Power', 100, 1, 'OnHit')],
+            'Multi-Attack': [('Variable Power', 100, 1, 'OnHit')],
+            'Revelation Dance': [('Variable Power', 100, 1, 'OnHit')],
+            'Natural Gift': [('Variable Power', 100, 1, 'OnHit')],
+            'Return': [('Variable Power', 100, 1, 'OnHit')],
+            'Frustration': [('Variable Power', 100, 1, 'OnHit')],
+            'Trump Card': [('Variable Power', 100, 1, 'OnHit')],
+            'Last Resort': [('Variable Power', 100, 1, 'OnHit')],
+            'Present': [('Variable Power', 100, 1, 'OnHit')],
+            'False Swipe': [('Variable Power', 100, 1, 'OnHit')],
+            'Hold Back': [('Variable Power', 100, 1, 'OnHit')],
+            'Spit Up': [('Variable Power', 100, 1, 'OnHit')],
+            'Doom Desire': [('Variable Power', 100, 1, 'OnHit')],
+            'Future Sight': [('Variable Power', 100, 1, 'OnHit')],
+            # --- Ignore Stat Changes ---
+            'Chip Away': [('Ignore Stat Changes', 100, 1, 'OnHit')],
+            'Sacred Sword': [('Ignore Stat Changes', 100, 1, 'OnHit')],
+            'Foresight': [('Ignore Stat Changes', 100, 1, 'OnHit')],
+            'Miracle Eye': [('Ignore Stat Changes', 100, 1, 'OnHit')],
+            'Odor Sleuth': [('Ignore Stat Changes', 100, 1, 'OnHit')],
+            # --- Stat Dependent Damage ---
+            'Psyshock': [('Stat Dependent Damage', 100, 1, 'OnHit')],
+            # --- Charge Turn Moves ---
+            'Solar Blade': [('Charge Turn', 100, 1, 'OnHit')],
+            # --- Self-Destruct / Faint Moves ---
+            'Explosion': [('Self Destruct', 100, 1, 'OnHit')],
+            'Self-Destruct': [('Self Destruct', 100, 1, 'OnHit')],
+            # --- Already-Defined Effects ---
+            'Attract': [('Attract', 100, 1, 'OnHit')],
+            'Belly Drum': [('Belly Drum', 100, 1, 'OnHit')],
+            'Conversion': [('Conversion', 100, 1, 'OnHit')],
+            'Conversion 2': [('Conversion', 100, 1, 'OnHit')],
+            'Copycat': [('Copycat', 100, 1, 'OnHit')],
+            'Curse': [('Curse', 100, 1, 'OnHit')],
+            'Destiny Bond': [('Destiny Bond', 100, 1, 'OnHit')],
+            'Lucky Chant': [('Lucky Chant', 100, 1, 'OnHit')],
+            'Nightmare': [('Nightmare', 100, 1, 'OnHit')],
+            'Lock-On': [('Lock On', 100, 1, 'OnHit')],
+            'Mind Reader': [('Lock On', 100, 1, 'OnHit')],
+            'Pay Day': [('Pay Day', 100, 1, 'OnHit')],
+            'Power Trick': [('Power Trick', 100, 1, 'OnHit')],
+            'Power Swap': [('Power Swap', 100, 1, 'OnHit')],
+            'Guard Swap': [('Guard Swap', 100, 1, 'OnHit')],
+            'Guard Split': [('Guard Swap', 100, 1, 'OnHit')],
+            'Power Split': [('Power Swap', 100, 1, 'OnHit')],
+            'Heart Swap': [('Copy Stat Stages', 100, 1, 'OnHit')],
+            'Spite': [('Spite', 100, 1, 'OnHit')],
+            'Sticky Web': [('Sticky Web', 100, 1, 'OnHit')],
+            'Tailwind': [('Tailwind', 100, 1, 'OnHit')],
+            'Telekinesis': [('Telekinesis', 100, 1, 'OnHit')],
+            'Topsy-Turvy': [('Clear Stats', 100, 1, 'OnHit')],
+            'Laser Focus': [('Focus Energy', 100, 1, 'OnHit')],
+            # --- Item / Ability Interaction ---
+            'Thief': [('Remove Item', 100, 2, 'OnHit')],
+            'Covet': [('Remove Item', 100, 2, 'OnHit')],
+            'Fling': [('Remove Item', 100, 1, 'OnHit')],
+            'Bug Bite': [('Remove Item', 100, 2, 'OnHit')],
+            'Pluck': [('Remove Item', 100, 2, 'OnHit')],
+            'Embargo': [('Remove Item', 100, 1, 'OnHit')],
+            'Belch': [('Item Dependent', 100, 1, 'OnHit')],
+            'Bestow': [('Swap Items', 100, 1, 'OnHit')],
+            'Gastro Acid': [('Nullify Ability', 100, 1, 'OnHit')],
+            'Entrainment': [('Nullify Ability', 100, 1, 'OnHit')],
+            'Simple Beam': [('Nullify Ability', 100, 1, 'OnHit')],
+            'Worry Seed': [('Nullify Ability', 100, 1, 'OnHit')],
+            'Skill Swap': [('Nullify Ability', 100, 1, 'OnHit')],
+            'Role Play': [('Nullify Ability', 100, 1, 'OnHit')],
+            # --- Type Change Moves ---
+            "Forest's Curse": [('Change Type Grass', 100, 1, 'OnHit')],
+            'Electrify': [('Change Type Normal to Electric', 100, 1, 'OnHit')],
+            'Reflect Type': [('Conversion', 100, 1, 'OnHit')],
+            # --- Taunt/Protect/Status Prevention ---
+            'Taunt': [('Taunt', 100, 1, 'OnHit')],
+            'Mat Block': [('Protect', 100, 1, 'OnHit')],
+            "King's Shield": [('Protect', 100, 1, 'OnHit'), ('Lower Attack 2', 100, 2, 'OnHit')],
+            # --- Other Complex Moves ---
+            'Outrage': [('Confusion', 100, 2, 'OnHit')],
+            'Sky Drop': [('Fly', 100, 1, 'OnHit')],
+            'Perish Song': [('Prevent Switching', 100, 1, 'OnHit')],
+            'Acupressure': [('Raise All Stats 1', 100, 1, 'OnHit')],
+            'Gravity': [('Lower Evasion 2', 100, 1, 'OnHit')],
+            'Heal Block': [('Disable', 100, 1, 'OnHit')],
+            'Imprison': [('Disable', 100, 1, 'OnHit')],
+            'Instruct': [('Encore', 100, 1, 'OnHit')],
+            'Pain Split': [('Heal 50%', 100, 1, 'OnHit')],
+            'Psycho Shift': [('Cure Status', 100, 1, 'OnHit')],
+            'High Jump Kick': [('Recoil 50%', 100, 2, 'IfMiss')],
+            'Jump Kick': [('Recoil 50%', 100, 2, 'IfMiss')],
+            'Nature Power': [('Variable Power', 100, 1, 'OnHit')],
+            'Sleep Talk': [('Metronome', 100, 1, 'OnHit')],
+            'Assist': [('Metronome', 100, 1, 'OnHit')],
+            'Mimic': [('Copycat', 100, 1, 'OnHit')],
+            'Uproar': [('Confusion', 100, 2, 'OnHit')],
+            'Camouflage': [('Conversion', 100, 1, 'OnHit')],
+            # --- Eevee/Pikachu Partner Moves ---
+            'Baddy Bad': [('Reflect', 100, 2, 'OnHit')],
+            'Sappy Seed': [('Trap 4-5 Turns', 100, 2, 'OnHit')],
+            'Freezy Frost': [('Haze', 100, 2, 'OnHit')],
+            'Glitzy Glow': [('Light Screen', 100, 2, 'OnHit')],
+            'Thousand Arrows': [('Smack Down', 100, 2, 'OnHit')],
+            'Magnet Rise': [('Raise Evasion 1', 100, 1, 'OnHit')],
+            # --- No-Effect Moves (mapped to Splash) ---
+            'Celebrate': [('Splash', 100, 1, 'OnHit')],
+            'Hold Hands': [('Splash', 100, 1, 'OnHit')],
+            'Happy Hour': [('Splash', 100, 1, 'OnHit')],
+            'After You': [('Splash', 100, 1, 'OnHit')],
+        }
+
+        for move_name, effects in effects_map.items():
+            move_id = get_move_id(move_name)
+            if not move_id:
+                continue
+
+            for eff_tuple in effects:
+                # Handle different tuple sizes if necessary, though our extractor ensures 4
+                if len(eff_tuple) >= 4:
+                    eff_name, prob, order, triggers = eff_tuple[:4]
+                    eff_id = get_effect_id(eff_name)
+                    if eff_id:
+                        effect_instances.append((move_id, eff_id, prob, order, triggers))
+
+        # Clear old and insert new
+        cursor.execute('DELETE FROM move_effect_instances')
+        cursor.executemany('''
+            INSERT INTO move_effect_instances (move_id, effect_id, probability, effect_order, triggers_on)
+            VALUES (?, ?, ?, ?, ?)
+        ''', effect_instances)
+        print(f'Inserted {len(effect_instances)} move effect instances')
 
     def _insert_move_effects(self, cursor):
         """Insert all move effects"""
@@ -423,6 +1184,7 @@ class DatabaseManager:
          heal_percentage, heal_fixed_amount, recoil_percentage, weather_type, field_condition, effect_target)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', effects)
+
     def _insert_moves(self, cursor):
         """Insert ALL 724 moves from Gen 1-7"""
         moves = [
@@ -1160,495 +1922,23 @@ class DatabaseManager:
 
         print(f'Successfully inserted {len(moves)} moves')
 
-    def _insert_move_effect_instances(self, cursor):
-        """Link ALL moves to their effects"""
-        effect_instances = []
-
-        # Helper to find effect ID by name
-        def get_effect_id(name):
-            cursor.execute('SELECT id FROM move_effects WHERE name = ?', (name,))
-            res = cursor.fetchone()
-            return res[0] if res else None
-
-        # Helper to find move ID by name
-        def get_move_id(name):
-            cursor.execute('SELECT id FROM moves WHERE name = ?', (name,))
-            res = cursor.fetchone()
-            return res[0] if res else None
-
-        print('Linking move effects...')
-        # Move Effects Map
-        effects_map = {
-            'Absorb': [('Drain 50%', 100, 1, 'OnHit')],
-            'Accelerock': [('Priority +1', 100, 1, 'OnHit')],
-            'Acid': [('Lower Defense 1', 10, 1, 'OnHit'), ('Lower SpDefense 1', 10, 1, 'OnHit')],
-            'Acid Armor': [('Raise Defense 2', 100, 1, 'OnHit')],
-            'Acid Spray': [('Lower SpDefense 2', 100, 2, 'OnHit')],
-            'Acrobatics': [('Item Dependent', 100, 1, 'OnHit')],
-            'Aerial Ace': [('Never Miss', 100, 1, 'OnHit')],
-            'Agility': [('Raise Speed 2', 100, 1, 'OnHit')],
-            'Air Slash': [('Flinch', 30, 2, 'OnHit')],
-            'Amnesia': [('Raise SpDefense 2', 100, 1, 'OnHit')],
-            'Anchor Shot': [('Prevent Switching', 100, 2, 'OnHit')],
-            'Ancient Power': [('Raise All Stats 1', 10, 2, 'OnHit')],
-            'Apple Acid': [('Lower SpDefense 1', 100, 2, 'OnHit')],
-            'Aqua Jet': [('Priority +1', 100, 1, 'OnHit')],
-            'Aqua Ring': [('Aqua Ring', 100, 1, 'OnHit')],
-            'Aromatherapy': [('Cure Status', 100, 1, 'OnHit')],
-            'Astral Barrage': [('Flinch', 20, 2, 'OnHit')],
-            'Attack Order': [('Always Crit', 100, 1, 'OnHit')],
-            'Aura Sphere': [('Never Miss', 100, 1, 'OnHit')],
-            'Aura Wheel': [('Raise Speed 1', 100, 2, 'OnHit')],
-            'Aurora Beam': [('Lower Attack 1', 10, 2, 'OnHit')],
-            'Aurora Veil': [('Aurora Veil', 100, 1, 'OnHit')],
-            'Baby-Doll Eyes': [('Priority +1', 100, 1, 'OnHit'), ('Lower Attack 1', 100, 2, 'OnHit')],
-            'Baneful Bunker': [('Protect', 100, 1, 'OnHit'), ('Poison 100%', 100, 2, 'OnHit')],
-            'Barrage': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Barrier': [('Raise Defense 2', 100, 1, 'OnHit')],
-            'Baton Pass': [('Baton Pass', 100, 1, 'OnHit')],
-            'Bind': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
-            'Bite': [('Flinch', 30, 2, 'OnHit')],
-            'Blast Burn': [('Recharge Turn', 100, 2, 'OnHit')],
-            'Blizzard': [('Freeze 10%', 10, 2, 'OnHit')],
-            'Blue Flare': [('Burn 20%', 20, 2, 'OnHit')],
-            'Body Press': [('Stat Dependent Damage', 100, 1, 'OnHit')],
-            'Body Slam': [('Paralysis 30%', 30, 2, 'OnHit')],
-            'Bolt Beak': [('Speed Dependent', 100, 1, 'OnHit')],
-            'Bolt Strike': [('Paralysis 20%', 20, 2, 'OnHit')],
-            'Bone Club': [('Flinch', 10, 2, 'OnHit')],
-            'Bone Rush': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Bonemerang': [('Multi Hit 2', 100, 1, 'OnHit')],
-            'Bounce': [('Paralysis 30%', 30, 2, 'OnHit')],
-            'Brave Bird': [('Recoil 33%', 100, 2, 'OnHit')],
-            'Breaking Swipe': [('Lower Attack 1', 100, 2, 'OnHit')],
-            'Brine': [('HP Scaling High', 100, 1, 'OnHit')],
-            'Bubble': [('Lower Speed 1', 10, 1, 'OnHit')],
-            'Bubble Beam': [('Lower Speed 1', 10, 2, 'OnHit')],
-            'Bug Buzz': [('Lower SpDefense 1', 10, 2, 'OnHit')],
-            'Bulk Up': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Defense 1', 100, 2, 'OnHit')],
-            'Bulldoze': [('Lower Speed 1', 100, 2, 'OnHit')],
-            'Bullet Punch': [('Priority +1', 100, 1, 'OnHit')],
-            'Bullet Seed': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Burn Up': [('Change Type Fire Remove', 100, 2, 'OnHit')],
-            'Calm Mind': [('Raise SpAttack 1', 100, 1, 'OnHit'), ('Raise SpDefense 1', 100, 2, 'OnHit')],
-            'Chatter': [('Confusion 100%', 100, 2, 'OnHit')],
-            'Circle Throw': [('Force Switch', 100, 2, 'OnHit')],
-            'Clamp': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
-            'Clanging Scales': [('Lower Defense 1', 100, 2, 'OnHit')],
-            'Clear Smog': [('Clear Stats', 100, 2, 'OnHit')],
-            'Close Combat': [('Lower Defense 1', 100, 2, 'OnHit'), ('Lower SpDefense 1', 100, 2, 'OnHit')],
-            'Coaching': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Defense 1', 100, 2, 'OnHit')],
-            'Coil': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Defense 1', 100, 2, 'OnHit'), ('Raise Accuracy 1', 100, 3, 'OnHit')],
-            'Comet Punch': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Confuse Ray': [('Confusion 100%', 100, 1, 'OnHit')],
-            'Confusion': [('Confusion', 10, 2, 'OnHit')],
-            'Constrict': [('Lower Speed 1', 10, 1, 'OnHit')],
-            'Core Enforcer': [('Nullify Ability', 100, 2, 'OnHit')],
-            'Cotton Guard': [('Raise Defense 2', 100, 1, 'OnHit')],
-            'Court Change': [('Court Change', 100, 1, 'OnHit')],
-            'Crabhammer': [('Always Crit', 100, 1, 'OnHit')],
-            'Cross Chop': [('Always Crit', 100, 1, 'OnHit')],
-            'Cross Poison': [('Always Crit', 100, 1, 'OnHit'), ('Poison 10%', 10, 2, 'OnHit')],
-            'Crunch': [('Lower Defense 1', 20, 2, 'OnHit')],
-            'Dark Pulse': [('Flinch', 20, 2, 'OnHit')],
-            'Darkest Lariat': [('Ignore Stat Changes', 100, 1, 'OnHit')],
-            'Decorate': [('Raise Attack 2', 100, 1, 'OnHit'), ('Raise SpAttack 2', 100, 2, 'OnHit')],
-            'Defend Order': [('Raise Defense 1', 100, 1, 'OnHit'), ('Raise SpDefense 1', 100, 2, 'OnHit')],
-            'Defense Curl': [('Raise Defense 1', 100, 1, 'OnHit')],
-            'Detect': [('Protect', 100, 1, 'OnHit')],
-            'Diamond Storm': [('Raise Defense 1', 50, 2, 'OnHit')],
-            'Disable': [('Disable', 100, 1, 'OnHit')],
-            'Discharge': [('Paralysis 30%', 30, 2, 'OnHit')],
-            'Dizzy Punch': [('Confusion 10%', 10, 1, 'OnHit')],
-            'Double Iron Bash': [('Multi Hit 2', 100, 1, 'OnHit'), ('Flinch', 30, 2, 'OnHit')],
-            'Double Kick': [('Multi Hit 2', 100, 1, 'OnHit')],
-            'Double Slap': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Double Team': [('Raise Evasion 1', 100, 1, 'OnHit')],
-            'Double-Edge': [('Recoil 25%', 100, 1, 'OnHit')],
-            'Draco Meteor': [('Lower SpAttack 2', 100, 2, 'OnHit')],
-            'Dragon Ascent': [('Lower Defense 1', 100, 2, 'OnHit'), ('Lower SpDefense 1', 100, 2, 'OnHit')],
-            'Dragon Breath': [('Paralysis 30%', 30, 2, 'OnHit')],
-            'Dragon Dance': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Speed 1', 100, 2, 'OnHit')],
-            'Dragon Darts': [('Multi Hit 2', 100, 1, 'OnHit')],
-            'Dragon Energy': [('HP Scaling High', 100, 1, 'OnHit')],
-            'Dragon Rush': [('Flinch', 20, 2, 'OnHit')],
-            'Dragon Tail': [('Force Switch', 100, 2, 'OnHit')],
-            'Drain Punch': [('Drain 50%', 100, 2, 'OnHit')],
-            'Draining Kiss': [('Drain 75%', 100, 2, 'OnHit')],
-            'Dream Eater': [('Drain 50%', 100, 2, 'OnHit')],
-            'Drum Beating': [('Lower Speed 1', 100, 2, 'OnHit')],
-            'Dual Chop': [('Multi Hit 2', 100, 1, 'OnHit')],
-            'Dual Wingbeat': [('Multi Hit 2', 100, 1, 'OnHit')],
-            'Dynamic Punch': [('Confusion 100%', 100, 2, 'OnHit')],
-            'Earth Power': [('Lower SpDefense 1', 10, 2, 'OnHit')],
-            'Electric Terrain': [('Electric Terrain', 100, 1, 'OnHit')],
-            'Electro Ball': [('Speed Dependent', 100, 1, 'OnHit')],
-            'Ember': [('Burn 10%', 10, 2, 'OnHit')],
-            'Encore': [('Encore', 100, 1, 'OnHit')],
-            'Energy Ball': [('Lower SpDefense 1', 10, 2, 'OnHit')],
-            'Eternabeam': [('Recharge Turn', 100, 2, 'OnHit')],
-            'Expanding Force': [('Terrain Dependent', 100, 1, 'OnHit')],
-            'Extreme Speed': [('Priority +1', 100, 1, 'OnHit')],
-            'False Surrender': [('Never Miss', 100, 1, 'OnHit')],
-            'Feather Dance': [('Lower Attack 2', 100, 1, 'OnHit')],
-            'Feint': [('Ignore Protection', 100, 1, 'OnHit'), ('Priority +1', 100, 2, 'OnHit')],
-            'Fell Stinger': [('Raise Attack 2', 100, 2, 'OnHit')],
-            'Fiery Wrath': [('Flinch', 20, 2, 'OnHit')],
-            'Fire Blast': [('Burn 10%', 10, 2, 'OnHit')],
-            'Fire Fang': [('Burn 10%', 10, 2, 'OnHit'), ('Flinch', 10, 3, 'OnHit')],
-            'Fire Lash': [('Lower Defense 1', 100, 2, 'OnHit')],
-            'Fire Punch': [('Burn 10%', 10, 2, 'OnHit')],
-            'Fire Spin': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
-            'First Impression': [('Priority +2', 100, 1, 'OnHit')],
-            'Fishious Rend': [('Speed Dependent', 100, 1, 'OnHit')],
-            'Fissure': [('OHKO', 30, 1, 'OnHit')],
-            'Flame Charge': [('Raise Speed 1', 100, 2, 'OnHit')],
-            'Flamethrower': [('Burn 10%', 10, 2, 'OnHit')],
-            'Flare Blitz': [('Recoil 33%', 100, 2, 'OnHit')],
-            'Flash': [('Lower Accuracy 1', 100, 1, 'OnHit')],
-            'Flash Cannon': [('Lower SpDefense 1', 10, 2, 'OnHit')],
-            'Fleur Cannon': [('Lower SpAttack 2', 100, 2, 'OnHit')],
-            'Flip Turn': [('Switch Out', 100, 2, 'OnHit')],
-            'Focus Blast': [('Lower SpDefense 1', 10, 2, 'OnHit')],
-            'Forests Curse': [('Change Type Grass', 100, 1, 'OnHit')],
-            'Foul Play': [('Use Target Attack', 100, 1, 'OnHit')],
-            'Freeze Shock': [('Paralysis 30%', 30, 2, 'OnHit')],
-            'Freezing Glare': [('Freeze 10%', 10, 2, 'OnHit')],
-            'Frost Breath': [('Always Crit', 100, 1, 'OnHit')],
-            'Fury Attack': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Fury Swipes': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Fusion Bolt': [('Damage Doubling', 100, 1, 'OnHit')],
-            'Gear Grind': [('Multi Hit 2', 100, 1, 'OnHit')],
-            'Giga Impact': [('Recharge Turn', 100, 2, 'OnHit')],
-            'Glacial Lance': [('Freeze 10%', 10, 2, 'OnHit')],
-            'Glare': [('Paralysis 100%', 100, 1, 'OnHit')],
-            'Grassy Glide': [('Priority +1', 100, 1, 'OnHit')],
-            'Grassy Terrain': [('Grassy Terrain', 100, 1, 'OnHit')],
-            'Grav Apple': [('Lower Defense 1', 100, 2, 'OnHit')],
-            'Growl': [('Lower Attack 1', 100, 1, 'OnHit')],
-            'Growth': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise SpAttack 1', 100, 1, 'OnHit')],
-            'Guillotine': [('OHKO', 30, 1, 'OnHit')],
-            'Gunk Shot': [('Poison 30%', 30, 2, 'OnHit')],
-            'Hail': [('Set Hail', 100, 1, 'OnHit')],
-            'Harden': [('Raise Defense 1', 100, 1, 'OnHit')],
-            'Haze': [('Haze', 100, 1, 'OnHit')],
-            'Head Smash': [('Recoil 50%', 100, 2, 'OnHit')],
-            'Headbutt': [('Flinch', 30, 2, 'OnHit')],
-            'Heal Bell': [('Cure Status', 100, 1, 'OnHit')],
-            'Heal Order': [('Heal 50%', 100, 1, 'OnHit')],
-            'Heart Stamp': [('Flinch', 30, 2, 'OnHit')],
-            'Heat Wave': [('Burn 10%', 10, 2, 'OnHit')],
-            'Hone Claws': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Accuracy 1', 100, 2, 'OnHit')],
-            'Horn Drill': [('OHKO', 30, 1, 'OnHit')],
-            'Horn Leech': [('Drain 50%', 100, 2, 'OnHit')],
-            'Hurricane': [('Confusion', 30, 2, 'OnHit')],
-            'Hyper Beam': [('Recharge Turn', 100, 2, 'OnHit')],
-            'Hyper Fang': [('Flinch 30%', 30, 1, 'OnHit')],
-            'Hyperspace Fury': [('Ignore Protection', 100, 1, 'OnHit'), ('Lower Defense 1', 100, 2, 'OnHit')],
-            'Hyperspace Hole': [('Never Miss', 100, 1, 'OnHit'), ('Ignore Protection', 100, 1, 'OnHit')],
-            'Hypnosis': [('Sleep', 100, 1, 'OnHit')],
-            'Ice Beam': [('Freeze 10%', 10, 2, 'OnHit')],
-            'Ice Burn': [('Burn 30%', 30, 2, 'OnHit')],
-            'Ice Punch': [('Freeze 10%', 10, 2, 'OnHit')],
-            'Ice Shard': [('Priority +1', 100, 1, 'OnHit')],
-            'Icicle Crash': [('Flinch', 30, 2, 'OnHit')],
-            'Icicle Spear': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Incinerate': [('Item Dependent', 100, 2, 'OnHit')],
-            'Infernal Parade': [('HP Scaling High', 100, 1, 'OnHit')],
-            'Inferno': [('Burn 100%', 100, 2, 'OnHit')],
-            'Ingrain': [('Ingrain', 100, 1, 'OnHit')],
-            'Iron Defense': [('Raise Defense 2', 100, 1, 'OnHit')],
-            'Iron Head': [('Flinch', 30, 2, 'OnHit')],
-            'Jaw Lock': [('Prevent Switching', 100, 2, 'OnHit')],
-            'Jungle Healing': [('Heal 25%', 100, 1, 'OnHit'), ('Cure Status', 100, 2, 'OnHit')],
-            'Karate Chop': [('Always Crit', 100, 1, 'OnHit')],
-            'Kinesis': [('Lower Accuracy 1', 100, 1, 'OnHit')],
-            'Kings Shield': [('Protect', 100, 1, 'OnHit'), ('Lower Attack 1', 100, 2, 'OnHit')],
-            'Knock Off': [('Remove Item', 100, 2, 'OnHit')],
-            'Leaf Blade': [('Always Crit', 100, 1, 'OnHit')],
-            'Leaf Storm': [('Lower SpAttack 2', 100, 2, 'OnHit')],
-            'Leech Life': [('Drain 50%', 100, 2, 'OnHit')],
-            'Leech Seed': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
-            'Leer': [('Lower Defense 1', 100, 1, 'OnHit')],
-            'Lick': [('Paralysis 30%', 30, 2, 'OnHit')],
-            'Life Dew': [('Heal 25%', 100, 1, 'OnHit')],
-            'Light That Burns The Sky': [('Stat Dependent Damage', 100, 1, 'OnHit')],
-            'Liquidation': [('Lower Defense 1', 20, 2, 'OnHit')],
-            'Lovely Kiss': [('Sleep 100%', 100, 1, 'OnHit')],
-            'Lunge': [('Lower Attack 1', 100, 2, 'OnHit')],
-            'Luster Purge': [('Lower SpDefense 1', 50, 2, 'OnHit')],
-            'Mach Punch': [('Priority +1', 100, 1, 'OnHit')],
-            'Magic Coat': [('Remove Hazards', 100, 1, 'OnHit'), ('Lower Accuracy 1', 100, 2, 'OnHit')],
-            'Magnet Bomb': [('Never Miss', 100, 1, 'OnHit')],
-            'Magnetic Flux': [('Raise Defense 1', 100, 1, 'OnHit'), ('Raise SpDefense 1', 100, 2, 'OnHit')],
-            'Magnitude': [('Variable Power', 100, 1, 'OnHit')],
-            'Meditate': [('Raise Attack 1', 100, 1, 'OnHit')],
-            'Mega Drain': [('Drain 50%', 100, 1, 'OnHit')],
-            'Metal Claw': [('Raise Attack 1', 10, 2, 'OnHit')],
-            'Meteor Beam': [('Raise SpAttack 1', 100, 2, 'OnHit')],
-            'Meteor Mash': [('Raise Attack 1', 20, 2, 'OnHit')],
-            'Milk Drink': [('Heal 50%', 100, 1, 'OnHit')],
-            'Mind Blown': [('Self HP Cost 50%', 100, 2, 'OnHit')],
-            'Minimize': [('Raise Evasion 2', 100, 1, 'OnHit')],
-            'Mirror Shot': [('Lower Accuracy 1', 30, 2, 'OnHit')],
-            'Mist': [('Mist', 100, 1, 'OnHit')],
-            'Mist Ball': [('Lower SpAttack 1', 50, 2, 'OnHit')],
-            'Misty Explosion': [('Self HP Cost 50%', 100, 2, 'OnHit')],
-            'Misty Terrain': [('Misty Terrain', 100, 1, 'OnHit')],
-            'Moonblast': [('Lower SpAttack 1', 30, 2, 'OnHit')],
-            'Moongeist Beam': [('Ignore Protection', 100, 1, 'OnHit'), ('Nullify Ability', 100, 1, 'OnHit')],
-            'Moonlight': [('Heal 50%', 100, 1, 'OnHit')],
-            'Morning Sun': [('Heal 50%', 100, 1, 'OnHit')],
-            'Mud Bomb': [('Lower Accuracy 1', 30, 2, 'OnHit')],
-            'Mud Shot': [('Lower Speed 1', 100, 2, 'OnHit')],
-            'Mud Slap': [('Lower Accuracy 1', 100, 2, 'OnHit')],
-            'Mystical Fire': [('Lower SpAttack 1', 100, 2, 'OnHit')],
-            'Nasty Plot': [('Raise SpAttack 2', 100, 1, 'OnHit')],
-            'Nature Madness': [('HP Scaling High', 100, 1, 'OnHit')],
-            'Needle Arm': [('Flinch', 30, 2, 'OnHit')],
-            'Night Slash': [('Always Crit', 100, 1, 'OnHit')],
-            'No Retreat': [('Raise All Stats 1', 100, 1, 'OnHit'), ('Prevent Switching', 100, 2, 'OnHit')],
-            'Nuzzle': [('Paralysis 100%', 100, 2, 'OnHit')],
-            'Oblivion Wing': [('Drain 75%', 100, 2, 'OnHit')],
-            'Obstruct': [('Protect', 100, 1, 'OnHit'), ('Lower Defense 1', 100, 2, 'OnHit')],
-            'Octazooka': [('Lower Accuracy 1', 50, 2, 'OnHit')],
-            'Ominous Wind': [('Raise All Stats 1', 10, 2, 'OnHit')],
-            'Origin Pulse': [('Burn 10%', 10, 2, 'OnHit')],
-            'Overheat': [('Lower SpAttack 2', 100, 2, 'OnHit')],
-            'Parabolic Charge': [('Drain 50%', 100, 2, 'OnHit')],
-            'Parting Shot': [('Lower Attack 1', 100, 1, 'OnHit'), ('Lower SpAttack 1', 100, 2, 'OnHit'), ('Switch Out', 100, 3, 'OnHit')],
-            'Petal Dance': [('Confusion 10%', 10, 1, 'OnHit')],
-            'Photon Geyser': [('Stat Dependent Damage', 100, 1, 'OnHit')],
-            'Pin Missile': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Plasma Fists': [('Change Type Normal to Electric', 100, 1, 'OnHit')],
-            'Play Nice': [('Lower Attack 1', 100, 1, 'OnHit')],
-            'Play Rough': [('Lower Attack 1', 10, 2, 'OnHit')],
-            'Poison Gas': [('Poison 90%', 90, 1, 'OnHit')],
-            'Poison Jab': [('Poison 30%', 30, 2, 'OnHit')],
-            'Poison Powder': [('Poison 75%', 75, 1, 'OnHit')],
-            'Poison Sting': [('Poison 30%', 30, 2, 'OnHit')],
-            'Poison Tail': [('Always Crit', 100, 1, 'OnHit'), ('Poison 10%', 10, 2, 'OnHit')],
-            'Poltergeist': [('Item Dependent', 100, 1, 'OnHit')],
-            'Powder Snow': [('Freeze 10%', 10, 2, 'OnHit')],
-            'Power Whip': [('Recoil 25%', 25, 2, 'OnHit')],
-            'Precipice Blades': [('Flinch', 10, 2, 'OnHit')],
-            'Prismatic Laser': [('Recharge Turn', 100, 2, 'OnHit')],
-            'Protect': [('Protect', 100, 1, 'OnHit')],
-            'Psybeam': [('Confusion', 10, 2, 'OnHit')],
-            'Psych Up': [('Copy Stat Stages', 100, 1, 'OnHit')],
-            'Psychic': [('Lower SpDefense 1', 10, 2, 'OnHit')],
-            'Psychic Terrain': [('Psychic Terrain', 100, 1, 'OnHit')],
-            'Psycho Boost': [('Lower SpAttack 2', 100, 2, 'OnHit')],
-            'Psystrike': [('Stat Dependent Damage', 100, 1, 'OnHit')],
-            'Pursuit': [('Pursuit Damage', 100, 1, 'OnHit')],
-            'Pyro Ball': [('Burn 10%', 10, 2, 'OnHit')],
-            'Quick Attack': [('Priority +1', 100, 1, 'OnHit')],
-            'Quiver Dance': [('Raise SpAttack 1', 100, 1, 'OnHit'), ('Raise SpDefense 1', 100, 2, 'OnHit'), ('Raise Speed 1', 100, 3, 'OnHit')],
-            'Rage': [('Raise Attack 1', 10, 1, 'OnHit')],
-            'Rain Dance': [('Set Rain', 100, 1, 'OnHit')],
-            'Rapid Spin': [('Remove Hazards', 100, 1, 'OnHit'), ('Raise Speed 1', 100, 2, 'OnHit')],
-            'Razor Leaf': [('High Crit 1', 100, 1, 'OnHit')],
-            'Razor Shell': [('Lower Defense 1', 50, 2, 'OnHit')],
-            'Recover': [('Heal 50%', 100, 1, 'OnHit')],
-            'Rest': [('Sleep', 100, 1, 'OnHit'), ('Heal 50%', 100, 2, 'OnHit')],
-            'Revenge': [('Speed Dependent', 100, 1, 'OnHit')],
-            'Rising Voltage': [('Terrain Dependent', 100, 1, 'OnHit')],
-            'Roar': [('Force Switch', 100, 1, 'OnHit')],
-            'Roar of Time': [('Recharge Turn', 100, 2, 'OnHit')],
-            'Rock Blast': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Rock Polish': [('Raise Speed 2', 100, 1, 'OnHit')],
-            'Rock Slide': [('Flinch', 30, 2, 'OnHit')],
-            'Rock Wrecker': [('Recharge Turn', 100, 2, 'OnHit')],
-            'Rolling Kick': [('Flinch 30%', 30, 1, 'OnHit')],
-            'Roost': [('Heal 50%', 100, 1, 'OnHit')],
-            'Sacred Fire': [('Burn 50%', 50, 2, 'OnHit')],
-            'Safeguard': [('Safeguard', 100, 1, 'OnHit')],
-            'Sand Attack': [('Lower Accuracy 1', 100, 1, 'OnHit')],
-            'Sand Tomb': [('Trap 4-5 Turns', 100, 2, 'OnHit')],
-            'Sandstorm': [('Set Sandstorm', 100, 1, 'OnHit')],
-            'Scald': [('Burn 30%', 30, 2, 'OnHit')],
-            'Scale Shot': [('Multi Hit 2-5', 100, 1, 'OnHit'), ('Raise Speed 1', 100, 2, 'OnHit'), ('Lower Defense 1', 100, 3, 'OnHit')],
-            'Screech': [('Lower Defense 2', 100, 1, 'OnHit')],
-            'Secret Sword': [('Stat Dependent Damage', 100, 1, 'OnHit')],
-            'Seed Flare': [('Lower SpDefense 2', 40, 2, 'OnHit')],
-            'Shadow Ball': [('Lower SpDefense 1', 20, 2, 'OnHit')],
-            'Shadow Bone': [('Lower Defense 1', 20, 2, 'OnHit')],
-            'Shadow Sneak': [('Priority +1', 100, 1, 'OnHit')],
-            'Sharpen': [('Raise Attack 1', 100, 1, 'OnHit')],
-            'Sheer Cold': [('OHKO', 30, 1, 'OnHit')],
-            'Shell Side Arm': [('Stat Dependent Damage', 100, 1, 'OnHit')],
-            'Shell Smash': [('Raise Attack 2', 100, 1, 'OnHit'), ('Raise SpAttack 2', 100, 2, 'OnHit'), ('Raise Speed 2', 100, 3, 'OnHit'), ('Lower Defense 1', 100, 4, 'OnHit'), ('Lower SpDefense 1', 100, 5, 'OnHit')],
-            'Shell Trap': [('Self HP Cost 50%', 100, 2, 'OnHit')],
-            'Shift Gear': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Speed 2', 100, 2, 'OnHit')],
-            'Shore Up': [('Heal 50%', 100, 1, 'OnHit')],
-            'Signal Beam': [('Confusion', 10, 2, 'OnHit')],
-            'Silver Wind': [('Raise All Stats 1', 10, 2, 'OnHit')],
-            'Sing': [('Sleep 100%', 100, 1, 'OnHit')],
-            'Skitter Smack': [('Lower SpAttack 1', 100, 2, 'OnHit')],
-            'Skull Bash': [('Raise Attack 1', 10, 1, 'OnHit'), ('Raise Defense 1', 10, 1, 'OnHit')],
-            'Sky Attack': [('Flinch', 30, 2, 'OnHit')],
-            'Slack Off': [('Heal 50%', 100, 1, 'OnHit')],
-            'Slash': [('High Crit 1', 100, 1, 'OnHit')],
-            'Sleep Powder': [('Sleep', 100, 1, 'OnHit')],
-            'Sludge': [('Poison 30%', 30, 2, 'OnHit')],
-            'Sludge Bomb': [('Poison 30%', 30, 2, 'OnHit')],
-            'Sludge Wave': [('Poison 10%', 10, 2, 'OnHit')],
-            'Smack Down': [('Smack Down', 100, 2, 'OnHit')],
-            'Smart Strike': [('Never Miss', 100, 1, 'OnHit')],
-            'Smog': [('Poison 30%', 30, 1, 'OnHit')],
-            'Smokescreen': [('Lower Accuracy 1', 100, 1, 'OnHit')],
-            'Snap Trap': [('Trap 4-5 Turns', 100, 2, 'OnHit')],
-            'Snarl': [('Lower SpAttack 1', 100, 2, 'OnHit')],
-            'Snipe Shot': [('Always Crit', 100, 1, 'OnHit'), ('Ignore Redirection', 100, 1, 'OnHit')],
-            'Soak': [('Change Type Water', 100, 1, 'OnHit')],
-            'Soft-Boiled': [('Heal 50%', 100, 1, 'OnHit')],
-            'Spacial Rend': [('Always Crit', 100, 1, 'OnHit')],
-            'Spectral Thief': [('Steal Stat Boosts', 100, 2, 'OnHit')],
-            'Speed Swap': [('Speed Swap', 100, 1, 'OnHit')],
-            'Spike Cannon': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Spikes': [('Set Spikes', 100, 1, 'OnHit')],
-            'Spiky Shield': [('Protect', 100, 1, 'OnHit'), ('Damage Contact', 100, 2, 'OnHit')],
-            'Spirit Break': [('Lower SpAttack 1', 100, 2, 'OnHit')],
-            'Spirit Shackle': [('Prevent Switching', 100, 2, 'OnHit')],
-            'Spore': [('Sleep', 100, 1, 'OnHit')],
-            'Stealth Rock': [('Set Stealth Rock', 100, 1, 'OnHit')],
-            'Steel Beam': [('Self HP Cost 50%', 100, 2, 'OnHit')],
-            'Steel Roller': [('Terrain Dependent', 100, 1, 'OnHit')],
-            'Stomp': [('Flinch 30%', 30, 1, 'OnHit')],
-            'Stone Edge': [('Always Crit', 100, 1, 'OnHit')],
-            'Stored Power': [('Stat Boost Scaling', 100, 1, 'OnHit')],
-            'Strange Steam': [('Confusion', 20, 2, 'OnHit')],
-            'String Shot': [('Lower Speed 2', 100, 1, 'OnHit')],
-            'Stuff Cheeks': [('Raise Defense 2', 100, 1, 'OnHit')],
-            'Stun Spore': [('Paralysis 100%', 100, 1, 'OnHit')],
-            'Submission': [('Recoil 25%', 100, 1, 'OnHit')],
-            'Substitute': [('Create Substitute', 100, 1, 'OnHit')],
-            'Sunny Day': [('Set Sun', 100, 1, 'OnHit')],
-            'Sunsteel Strike': [('Nullify Ability', 100, 1, 'OnHit')],
-            'Supersonic': [('Confusion 100%', 100, 1, 'OnHit')],
-            'Surging Strikes': [('Multi Hit 3', 100, 1, 'OnHit'), ('Always Crit', 100, 1, 'OnHit')],
-            'Sweet Kiss': [('Confusion', 100, 1, 'OnHit')],
-            'Switcheroo': [('Swap Items', 100, 1, 'OnHit')],
-            'Swords Dance': [('Raise Attack 2', 100, 1, 'OnHit')],
-            'Synchronoise': [('Type Dependent', 100, 1, 'OnHit')],
-            'Synthesis': [('Heal 50%', 100, 1, 'OnHit')],
-            'Tail Glow': [('Raise SpAttack 3', 100, 1, 'OnHit')],
-            'Tail Slap': [('Multi Hit 2-5', 100, 1, 'OnHit')],
-            'Tail Whip': [('Lower Defense 1', 100, 1, 'OnHit')],
-            'Take Down': [('Recoil 25%', 100, 1, 'OnHit')],
-            'Tar Shot': [('Lower Speed 1', 100, 1, 'OnHit'), ('Change Type Fire Weakness', 100, 2, 'OnHit')],
-            'Teatime': [('Force Berry', 100, 1, 'OnHit')],
-            'Teleport': [('Switch Out', 100, 1, 'OnHit')],
-            'Terrain Pulse': [('Terrain Dependent', 100, 1, 'OnHit')],
-            'Thrash': [('Confusion 10%', 10, 1, 'OnHit')],
-            'Throat Chop': [('Prevent Sound Moves', 100, 2, 'OnHit')],
-            'Thunder': [('Paralysis 30%', 30, 2, 'OnHit')],
-            'Thunder Punch': [('Paralysis 10%', 10, 2, 'OnHit')],
-            'Thunder Shock': [('Paralysis 10%', 10, 1, 'OnHit')],
-            'Thunder Wave': [('Paralysis 100%', 100, 1, 'OnHit')],
-            'Thunderbolt': [('Paralysis 10%', 10, 2, 'OnHit')],
-            'Thunderous Kick': [('Lower Defense 1', 100, 2, 'OnHit')],
-            'Torment': [('Torment', 100, 1, 'OnHit')],
-            'Toxic': [('Poison 100%', 100, 1, 'OnHit')],
-            'Toxic Spikes': [('Set Toxic Spikes', 100, 1, 'OnHit')],
-            'Toxic Thread': [('Poison 100%', 100, 1, 'OnHit'), ('Lower Speed 1', 100, 2, 'OnHit')],
-            'Tri Attack': [('Paralysis 20%', 20, 2, 'OnHit'), ('Burn 20%', 20, 3, 'OnHit'), ('Freeze 20%', 20, 4, 'OnHit')],
-            'Trick': [('Swap Items', 100, 1, 'OnHit')],
-            'Trick Room': [('Trick Room', 100, 1, 'OnHit')],
-            'Trick-or-Treat': [('Change Type Ghost', 100, 1, 'OnHit')],
-            'Triple Arrows': [('Always Crit', 100, 1, 'OnHit'), ('Lower Defense 1', 30, 2, 'OnHit'), ('Flinch', 30, 3, 'OnHit')],
-            'Triple Axel': [('Multi Hit 3', 100, 1, 'OnHit')],
-            'Twineedle': [('Multi Hit 2', 100, 1, 'OnHit'), ('Poison 20%', 20, 2, 'OnHit')],
-            'Vacuum Wave': [('Priority +1', 100, 1, 'OnHit')],
-            'Venom Drench': [('Lower Attack 1', 100, 1, 'OnHit'), ('Lower SpAttack 1', 100, 2, 'OnHit'), ('Lower Speed 1', 100, 3, 'OnHit')],
-            'Venoshock': [('HP Scaling High', 100, 1, 'OnHit')],
-            'Victory Dance': [('Raise Attack 1', 100, 1, 'OnHit'), ('Raise Defense 1', 100, 2, 'OnHit'), ('Raise Speed 1', 100, 3, 'OnHit')],
-            'Volt Switch': [('Switch Out', 100, 2, 'OnHit')],
-            'Volt Tackle': [('Recoil 33%', 100, 2, 'OnHit')],
-            'Water Shuriken': [('Multi Hit 2-5', 100, 1, 'OnHit'), ('Priority +1', 100, 2, 'OnHit')],
-            'Water Spout': [('HP Scaling High', 100, 1, 'OnHit')],
-            'Waterfall': [('Flinch', 20, 2, 'OnHit')],
-            'Weather Ball': [('Terrain Dependent', 100, 1, 'OnHit')],
-            'Whirlpool': [('Trap 4-5 Turns', 100, 2, 'OnHit')],
-            'Whirlwind': [('Force Switch', 100, 1, 'OnHit')],
-            'Wicked Blow': [('Always Crit', 100, 1, 'OnHit')],
-            'Wide Guard': [('Wide Guard', 100, 1, 'OnHit')],
-            'Wild Charge': [('Recoil 25%', 100, 2, 'OnHit')],
-            'Will-O-Wisp': [('Burn 100%', 100, 1, 'OnHit')],
-            'Wish': [('Wish', 100, 1, 'OnHit')],
-            'Withdraw': [('Raise Defense 1', 100, 1, 'OnHit')],
-            'Wood Hammer': [('Recoil 33%', 100, 2, 'OnHit')],
-            'Wrap': [('Trap 4-5 Turns', 100, 1, 'OnHit')],
-            'Yawn': [('Yawn', 100, 1, 'OnHit')],
-            'Zap Cannon': [('Paralysis 100%', 100, 2, 'OnHit')],
-            'Zen Headbutt': [('Flinch', 20, 2, 'OnHit')],
-            'Zing Zap': [('Flinch', 30, 2, 'OnHit')],
-            # Complex Moves - Charge/Invulnerability/Special Mechanics
-            'Solar Beam': [('Charge Turn', 100, 1, 'OnHit')],
-            'Sky Attack': [('Charge Turn', 100, 1, 'OnHit'), ('Flinch', 30, 2, 'OnHit')],
-            'Razor Wind': [('Charge Turn', 100, 1, 'OnHit')],
-            'Skull Bash': [('Charge Turn', 100, 1, 'OnHit'), ('Raise Defense 1', 100, 2, 'OnHit')],
-            'Geomancy': [('Charge Turn', 100, 1, 'OnHit'), ('Raise SpAttack 2', 100, 2, 'OnHit'), ('Raise SpDefense 2', 100, 3, 'OnHit'), ('Raise Speed 2', 100, 4, 'OnHit')],
-            'Freeze Shock': [('Charge Turn', 100, 1, 'OnHit'), ('Paralysis 30%', 30, 2, 'OnHit')],
-            'Ice Burn': [('Charge Turn', 100, 1, 'OnHit'), ('Burn 30%', 30, 2, 'OnHit')],
-            'Meteor Beam': [('Charge Turn', 100, 1, 'OnHit'), ('Raise SpAttack 1', 100, 2, 'OnHit')],
-            'Dig': [('Dig', 100, 1, 'OnHit')],
-            'Fly': [('Fly', 100, 1, 'OnHit')],
-            'Bounce': [('Fly', 100, 1, 'OnHit'), ('Paralysis 30%', 30, 2, 'OnHit')],
-            'Dive': [('Dive', 100, 1, 'OnHit')],
-            'Phantom Force': [('Shadow Force', 100, 1, 'OnHit')],
-            'Shadow Force': [('Shadow Force', 100, 1, 'OnHit')],
-            'Seismic Toss': [('Fixed Damage Level', 100, 1, 'OnHit')],
-            'Night Shade': [('Fixed Damage Level', 100, 1, 'OnHit')],
-            'Super Fang': [('Fixed Damage 50% HP', 100, 1, 'OnHit')],
-            'Psywave': [('Fixed Damage Random', 100, 1, 'OnHit')],
-            'Sonic Boom': [('Fixed Damage 20', 100, 1, 'OnHit')],
-            'Dragon Rage': [('Fixed Damage 40', 100, 1, 'OnHit')],
-            'Low Kick': [('Weight Damage', 100, 1, 'OnHit')],
-            'Grass Knot': [('Weight Damage', 100, 1, 'OnHit')],
-            'Counter': [('Counter', 100, 1, 'OnHit')],
-            'Mirror Coat': [('Mirror Coat', 100, 1, 'OnHit')],
-            'Metal Burst': [('Metal Burst', 100, 1, 'OnHit')],
-            'Bide': [('Bide', 100, 1, 'OnHit')],
-            'Endeavor': [('Endeavor', 100, 1, 'OnHit')],
-            'Final Gambit': [('Final Gambit', 100, 1, 'OnHit')],
-            'Mirror Move': [('Mirror Move', 100, 1, 'OnHit')],
-            'Metronome': [('Metronome', 100, 1, 'OnHit')],
-            'Transform': [('Transform', 100, 1, 'OnHit')],
-            'Splash': [('Splash', 100, 1, 'OnHit')],
-            'Focus Energy': [('Focus Energy', 100, 1, 'OnHit')],
-            'Teleport': [('Teleport', 100, 1, 'OnHit')],
-            # Screen and Field Moves
-            'Reflect': [('Reflect', 100, 1, 'OnHit')],
-            'Light Screen': [('Light Screen', 100, 1, 'OnHit')],
-        }
-
-        for move_name, effects in effects_map.items():
-            move_id = get_move_id(move_name)
-            if not move_id:
-                continue
-
-            for eff_tuple in effects:
-                # Handle different tuple sizes if necessary, though our extractor ensures 4
-                if len(eff_tuple) >= 4:
-                    eff_name, prob, order, triggers = eff_tuple[:4]
-                    eff_id = get_effect_id(eff_name)
-                    if eff_id:
-                        effect_instances.append((move_id, eff_id, prob, order, triggers))
-
-        # Clear old and insert new
-        cursor.execute('DELETE FROM move_effect_instances')
-        cursor.executemany('''
-            INSERT INTO move_effect_instances (move_id, effect_id, probability, effect_order, triggers_on)
-            VALUES (?, ?, ?, ?, ?)
-        ''', effect_instances)
-        print(f'Inserted {len(effect_instances)} move effect instances')
-
-    def _get_effect_id(self, cursor, effect_name):
-        """Helper to get effect ID by name"""
-        cursor.execute("SELECT id FROM move_effects WHERE name = ?", (effect_name,))
-        result = cursor.fetchone()
-        return result[0] if result else None
+    def _insert_pokemon_evolutions(self, cursor):
+        """Insert pokemon evolution data from exported file"""
+        try:
+            # Import the exported data
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+            from pokemon_evolutions_export import POKEMON_EVOLUTIONS
+            
+            cursor.executemany('''
+                INSERT INTO pokemon_evolutions (pokemon_id, evolves_to_id, evolution_level)
+                VALUES (?, ?, ?)
+            ''', POKEMON_EVOLUTIONS)
+            print(f'Inserted {len(POKEMON_EVOLUTIONS)} pokemon evolution entries')
+        except ImportError:
+            print('⚠️  Warning: pokemon_evolutions_export.py not found. Evolutions table will be empty.')
+            print('   Run: py export_data.py to generate this file from existing database.')
 
     def _insert_pokemon_learnsets(self, cursor):
         """Insert pokemon learnset data from exported file"""
@@ -1668,23 +1958,84 @@ class DatabaseManager:
             print('⚠️  Warning: pokemon_learnsets_export.py not found. Learnsets table will be empty.')
             print('   Run: py export_data.py to generate this file from existing database.')
 
-    def _insert_pokemon_evolutions(self, cursor):
-        """Insert pokemon evolution data from exported file"""
-        try:
-            # Import the exported data
-            import sys
-            import os
-            sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-            from pokemon_evolutions_export import POKEMON_EVOLUTIONS
-            
-            cursor.executemany('''
-                INSERT INTO pokemon_evolutions (pokemon_id, evolves_to_id, evolution_level)
-                VALUES (?, ?, ?)
-            ''', POKEMON_EVOLUTIONS)
-            print(f'Inserted {len(POKEMON_EVOLUTIONS)} pokemon evolution entries')
-        except ImportError:
-            print('⚠️  Warning: pokemon_evolutions_export.py not found. Evolutions table will be empty.')
-            print('   Run: py export_data.py to generate this file from existing database.')
+    def _insert_types(self, cursor):
+        """Insert all Pokemon types"""
+        types = [
+            (1, 'Normal'),
+            (2, 'Fire'),
+            (3, 'Water'),
+            (4, 'Electric'),
+            (5, 'Grass'),
+            (6, 'Ice'),
+            (7, 'Fighting'),
+            (8, 'Poison'),
+            (9, 'Ground'),
+            (10, 'Flying'),
+            (11, 'Psychic'),
+            (12, 'Bug'),
+            (13, 'Rock'),
+            (14, 'Ghost'),
+            (15, 'Dragon'),
+            (16, 'Dark'),
+            (17, 'Steel'),
+            (18, 'Fairy')
+        ]
+        
+        cursor.executemany('INSERT INTO types (id, name) VALUES (?, ?)', types)
+        print(f"Successfully inserted {len(types)} types")
+
+    # endregion Data insertion
+
+
+def get_all_moves():
+    """Get all moves"""
+    db = DatabaseManager()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM moves ORDER BY name')
+    results = cursor.fetchall()
+    conn.close()
+    return results
+
+
+def get_available_moves_for_level(pokemon_id, current_level, count=4):
+    """
+    Get the most recent moves available for a Pokemon at a given level.
+    This is useful for generating a moveset for a Pokemon at a specific level.
+    
+    Args:
+        pokemon_id: Pokemon ID
+        current_level: Current level of the Pokemon
+        count: Number of most recent moves to return (default 4)
+    
+    Returns:
+        List of dicts with move id, name, and learn_level (ordered by most recent first)
+    """
+    db = DatabaseManager()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT m.id, m.name, pl.learn_level
+        FROM pokemon_learnsets pl
+        JOIN moves m ON pl.move_id = m.id
+        WHERE pl.pokemon_id = ? AND pl.learn_method = 'levelup' AND pl.learn_level <= ?
+        ORDER BY pl.learn_level DESC
+        LIMIT ?
+    ''', (pokemon_id, current_level, count))
+    
+    moves = []
+    for row in cursor.fetchall():
+        moves.append({
+            'id': row[0],
+            'name': row[1],
+            'learn_level': row[2]
+        })
+    
+    conn.close()
+    return moves
+
 
 def get_move_details(move_id):
     """Get complete move details with effects"""
@@ -1721,27 +2072,34 @@ def get_move_details(move_id):
         'effects': effects
     }
 
-def get_all_moves():
-    """Get all moves"""
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM moves ORDER BY name')
-    results = cursor.fetchall()
-    conn.close()
-    return results
 
-def search_moves_by_type(move_type):
-    """Search moves by type"""
+def get_moves_at_level(pokemon_id, level):
+    """
+    Get moves a Pokemon learns at a specific level
+    
+    Args:
+        pokemon_id: Pokemon ID
+        level: Specific level to check
+    
+    Returns:
+        List of dicts with move id and name
+    """
     db = DatabaseManager()
     conn = db.get_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT * FROM moves WHERE type = ? ORDER BY name', (move_type,))
-    results = cursor.fetchall()
+    cursor.execute('''
+        SELECT m.id, m.name
+        FROM pokemon_learnsets pl
+        JOIN moves m ON pl.move_id = m.id
+        WHERE pl.pokemon_id = ? AND pl.learn_method = 'levelup' AND pl.learn_level = ?
+        ORDER BY m.name
+    ''', (pokemon_id, level))
+    
+    moves = [{'id': row[0], 'name': row[1]} for row in cursor.fetchall()]
     conn.close()
-    return results
+    return moves
+
 
 # ========== POKEMON LEARNSET FUNCTIONS ==========
 
@@ -1789,66 +2147,14 @@ def get_pokemon_learnset(pokemon_id, max_level=None):
     conn.close()
     return moves
 
-def get_moves_at_level(pokemon_id, level):
-    """
-    Get moves a Pokemon learns at a specific level
-    
-    Args:
-        pokemon_id: Pokemon ID
-        level: Specific level to check
-    
-    Returns:
-        List of dicts with move id and name
-    """
-    db = DatabaseManager()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        SELECT m.id, m.name
-        FROM pokemon_learnsets pl
-        JOIN moves m ON pl.move_id = m.id
-        WHERE pl.pokemon_id = ? AND pl.learn_method = 'levelup' AND pl.learn_level = ?
-        ORDER BY m.name
-    ''', (pokemon_id, level))
-    
-    moves = [{'id': row[0], 'name': row[1]} for row in cursor.fetchall()]
-    conn.close()
-    return moves
 
-def get_available_moves_for_level(pokemon_id, current_level, count=4):
-    """
-    Get the most recent moves available for a Pokemon at a given level.
-    This is useful for generating a moveset for a Pokemon at a specific level.
-    
-    Args:
-        pokemon_id: Pokemon ID
-        current_level: Current level of the Pokemon
-        count: Number of most recent moves to return (default 4)
-    
-    Returns:
-        List of dicts with move id, name, and learn_level (ordered by most recent first)
-    """
+def search_moves_by_type(move_type):
+    """Search moves by type"""
     db = DatabaseManager()
     conn = db.get_connection()
     cursor = conn.cursor()
     
-    cursor.execute('''
-        SELECT m.id, m.name, pl.learn_level
-        FROM pokemon_learnsets pl
-        JOIN moves m ON pl.move_id = m.id
-        WHERE pl.pokemon_id = ? AND pl.learn_method = 'levelup' AND pl.learn_level <= ?
-        ORDER BY pl.learn_level DESC
-        LIMIT ?
-    ''', (pokemon_id, current_level, count))
-    
-    moves = []
-    for row in cursor.fetchall():
-        moves.append({
-            'id': row[0],
-            'name': row[1],
-            'learn_level': row[2]
-        })
-    
+    cursor.execute('SELECT * FROM moves WHERE type = ? ORDER BY name', (move_type,))
+    results = cursor.fetchall()
     conn.close()
-    return moves
+    return results

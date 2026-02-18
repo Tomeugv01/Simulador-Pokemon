@@ -43,7 +43,7 @@ class MoveEffect:
     Base class for all move effects.
     Represents a single effect that can be applied by a move.
     """
-    
+
     def __init__(self, effect_data):
         """
         Initialize a move effect from database data.
@@ -67,7 +67,24 @@ class MoveEffect:
         self.recoil_percentage = effect_data.get('recoil_percentage', 0)
         self.weather_type = effect_data.get('weather_type', 'None')
         self.field_condition = effect_data.get('field_condition')
-    
+
+    # *** PUBLIC ***
+
+    def apply(self, user, target, battle_state, damage_dealt=0):
+        """
+        Apply the effect. Override in subclasses.
+        
+        Args:
+            user: Pokemon using the move
+            target: Pokemon being targeted
+            battle_state: Current battle state
+            damage_dealt (int): Damage dealt by the move (for drain/recoil)
+        
+        Returns:
+            dict: Result of applying the effect
+        """
+        raise NotImplementedError("Subclasses must implement apply()")
+
     def should_trigger(self, context=None):
         """
         Check if effect should trigger based on probability and conditions.
@@ -92,32 +109,21 @@ class MoveEffect:
         
         # Check probability
         return random.randint(1, 100) <= self.probability
-    
-    def apply(self, user, target, battle_state, damage_dealt=0):
-        """
-        Apply the effect. Override in subclasses.
-        
-        Args:
-            user: Pokemon using the move
-            target: Pokemon being targeted
-            battle_state: Current battle state
-            damage_dealt (int): Damage dealt by the move (for drain/recoil)
-        
-        Returns:
-            dict: Result of applying the effect
-        """
-        raise NotImplementedError("Subclasses must implement apply()")
-    
+
+    # *** DUNDER METHODS ***
+
     def __repr__(self):
         return f"{self.name} ({self.effect_type.value}, {self.probability}%)"
 
 
 class StatusEffect(MoveEffect):
     """Effect that applies a status condition"""
-    
+
     def __init__(self, effect_data):
         super().__init__(effect_data)
-    
+
+    # *** PUBLIC ***
+
     def apply(self, user, target, battle_state, damage_dealt=0):
         """
         Apply status condition to target.
@@ -162,10 +168,12 @@ class StatusEffect(MoveEffect):
 
 class StatChangeEffect(MoveEffect):
     """Effect that modifies stat stages"""
-    
+
     def __init__(self, effect_data):
         super().__init__(effect_data)
-    
+
+    # *** PUBLIC ***
+
     def apply(self, user, target, battle_state, damage_dealt=0):
         """
         Modify stat stages.
@@ -233,10 +241,12 @@ class StatChangeEffect(MoveEffect):
 
 class HealEffect(MoveEffect):
     """Effect that heals HP"""
-    
+
     def __init__(self, effect_data):
         super().__init__(effect_data)
-    
+
+    # *** PUBLIC ***
+
     def apply(self, user, target, battle_state, damage_dealt=0):
         """
         Heal HP.
@@ -290,10 +300,12 @@ class HealEffect(MoveEffect):
 
 class RecoilEffect(MoveEffect):
     """Effect that damages the user (recoil)"""
-    
+
     def __init__(self, effect_data):
         super().__init__(effect_data)
-    
+
+    # *** PUBLIC ***
+
     def apply(self, user, target, battle_state, damage_dealt=0):
         """
         Apply recoil damage to user.
@@ -316,10 +328,12 @@ class RecoilEffect(MoveEffect):
 
 class WeatherEffect(MoveEffect):
     """Effect that changes weather"""
-    
+
     def __init__(self, effect_data):
         super().__init__(effect_data)
-    
+
+    # *** PUBLIC ***
+
     def apply(self, user, target, battle_state, damage_dealt=0):
         """
         Set weather condition.
@@ -351,10 +365,12 @@ class WeatherEffect(MoveEffect):
 
 class FieldEffect(MoveEffect):
     """Effect that sets field conditions (hazards, terrain, etc.)"""
-    
+
     def __init__(self, effect_data):
         super().__init__(effect_data)
-    
+
+    # *** PUBLIC ***
+
     def apply(self, user, target, battle_state, damage_dealt=0):
         """
         Set field condition.
@@ -372,15 +388,50 @@ class FieldEffect(MoveEffect):
                 'target_side': []
             }
         
-        # Add condition
-        if condition not in battle_state['field_conditions'][side]:
-            battle_state['field_conditions'][side].append(condition)
-            
-            messages = {
-                'Spikes': f"Spikes were scattered on the ground!",
-                'ToxicSpikes': f"Poison spikes were scattered on the ground!",
-                'StealthRock': f"Pointed stones float in the air!",
+        # === Haze: Reset all stat changes ===
+        if condition == 'Haze' or 'Haze' in self.name:
+            for pokemon in [user, target]:
+                if hasattr(pokemon, 'stat_stages'):
+                    for stat in pokemon.stat_stages:
+                        pokemon.stat_stages[stat] = 0
+            return {
+                'success': True,
+                'condition': 'Haze',
+                'message': "All stat changes were reset!"
             }
+        
+        # === Remove Hazards ===
+        if condition == 'RemoveHazards' or 'Remove Hazards' in self.name:
+            return {
+                'success': True,
+                'condition': 'RemoveHazards',
+                'message': "The hazards were cleared!"
+            }
+        
+        # Messages for different conditions
+        messages = {
+            'Spikes': "Spikes were scattered on the ground!",
+            'ToxicSpikes': "Poison spikes were scattered on the ground!",
+            'StealthRock': "Pointed stones float in the air!",
+            'Reflect': "Reflect raised the team's physical Defense!",
+            'Light Screen': "Light Screen raised the team's special Defense!",
+            'Aurora Veil': "Aurora Veil made the team stronger!",
+            'Safeguard': "The team is cloaked in Safeguard!",
+            'Mist': "The team is shrouded in Mist!",
+            'Tailwind': "The tailwind blew from behind!",
+            'Trick Room': "The dimensions were twisted!",
+            'Lucky Chant': "Lucky Chant shielded from critical hits!",
+            'Sticky Web': "A sticky web was laid out!",
+            'Wide Guard': "Wide Guard protected the team!",
+            'Electric Terrain': "Electric Terrain covers the battlefield!",
+            'Grassy Terrain': "Grassy Terrain covers the battlefield!",
+            'Misty Terrain': "Misty Terrain covers the battlefield!",
+            'Psychic Terrain': "Psychic Terrain covers the battlefield!",
+        }
+        
+        # Add condition
+        if condition and condition not in battle_state['field_conditions'][side]:
+            battle_state['field_conditions'][side].append(condition)
             
             return {
                 'success': True,
@@ -397,10 +448,12 @@ class FieldEffect(MoveEffect):
 
 class SpecialEffect(MoveEffect):
     """Effect for special mechanics (flinch, priority, protect, etc.)"""
-    
+
     def __init__(self, effect_data):
         super().__init__(effect_data)
-    
+
+    # *** PUBLIC ***
+
     def apply(self, user, target, battle_state, damage_dealt=0):
         """
         Apply special effect.
@@ -645,18 +698,247 @@ class SpecialEffect(MoveEffect):
             
         # Transform
         if 'Transform' in effect_name:
-            success = user.transform(target)
-            if success:
-                return {
-                    'success': True,
-                    'effect': 'transform',
-                    'message': f"{user.name} transformed into {target.name}!"
-                }
+            if hasattr(user, 'transform'):
+                success = user.transform(target)
+                if success:
+                    return {
+                        'success': True,
+                        'effect': 'transform',
+                        'message': f"{user.name} transformed into {target.name}!"
+                    }
             return {
                 'success': False,
                 'effect': 'transform',
-                'message': f"{user.name} is already transformed!"
+                'message': f"{user.name} couldn't transform!"
             }
+        
+        # Always Crit / High Crit - handled in damage calculation
+        if 'Always Crit' in effect_name or 'High Crit' in effect_name:
+            return {'success': True, 'effect': 'crit_boost', 'message': ''}
+        
+        # Never Miss - handled in accuracy check
+        if 'Never Miss' in effect_name:
+            return {'success': True, 'effect': 'never_miss', 'message': ''}
+        
+        # Priority - already set on move
+        if 'Priority' in effect_name:
+            return {'success': True, 'effect': 'priority', 'message': ''}
+        
+        # Splash - no effect
+        if 'Splash' in effect_name:
+            return {'success': True, 'effect': 'splash', 'message': 'But nothing happened!'}
+        
+        # Self Destruct - user faints
+        if 'Self Destruct' in effect_name:
+            user.take_damage(user.current_hp)
+            return {'success': True, 'effect': 'self_destruct', 'message': f"{user.name} fainted!"}
+        
+        # Belly Drum - maximize Attack at cost of 50% HP
+        if 'Belly Drum' in effect_name:
+            cost = user.max_hp // 2
+            if user.current_hp > cost:
+                user.take_damage(cost)
+                if hasattr(user, 'stat_stages'):
+                    user.stat_stages['attack'] = 6
+                return {'success': True, 'effect': 'belly_drum', 
+                        'message': f"{user.name} cut its own HP and maximized Attack!"}
+            return {'success': False, 'effect': 'belly_drum', 'message': f"But it failed!"}
+        
+        # Destiny Bond
+        if 'Destiny Bond' in effect_name:
+            user.destiny_bond = True
+            return {'success': True, 'effect': 'destiny_bond',
+                    'message': f"{user.name} is trying to take its foe with it!"}
+        
+        # Focus Energy
+        if 'Focus Energy' in effect_name:
+            user.focus_energy = True
+            return {'success': True, 'effect': 'focus_energy',
+                    'message': f"{user.name} is getting pumped!"}
+        
+        # Lock On / Mind Reader
+        if 'Lock On' in effect_name:
+            user.lock_on = True
+            return {'success': True, 'effect': 'lock_on',
+                    'message': f"{user.name} took aim at {target.name}!"}
+        
+        # Attract
+        if 'Attract' in effect_name:
+            target.attracted = True
+            return {'success': True, 'effect': 'attract',
+                    'message': f"{target.name} fell in love!"}
+        
+        # Baton Pass
+        if 'Baton Pass' in effect_name:
+            return {'success': True, 'effect': 'baton_pass',
+                    'message': f"{user.name} passed its boosts!"}
+        
+        # Counter / Mirror Coat / Metal Burst
+        if effect_name in ('Counter', 'Mirror Coat', 'Metal Burst'):
+            last_damage = getattr(user, 'last_damage_taken', 0)
+            if last_damage > 0:
+                multiplier = 1.5 if effect_name == 'Metal Burst' else 2.0
+                return_damage = int(last_damage * multiplier)
+                target.take_damage(return_damage)
+                return {'success': True, 'effect': 'counter',
+                        'message': f"{target.name} took {return_damage} damage!"}
+            return {'success': False, 'effect': 'counter', 'message': 'But it failed!'}
+        
+        # OHKO
+        if 'OHKO' in effect_name:
+            damage = target.current_hp
+            target.take_damage(damage)
+            return {'success': True, 'effect': 'ohko', 'message': "It's a one-hit KO!"}
+        
+        # Copy Stat Stages (Psych Up / Heart Swap)
+        if 'Copy Stat Stages' in effect_name:
+            if hasattr(user, 'stat_stages') and hasattr(target, 'stat_stages'):
+                for stat in user.stat_stages:
+                    if stat in target.stat_stages:
+                        user.stat_stages[stat] = target.stat_stages[stat]
+            return {'success': True, 'effect': 'copy_stats',
+                    'message': f"{user.name} copied {target.name}'s stat changes!"}
+        
+        # Steal Stat Boosts (Spectral Thief)
+        if 'Steal Stat Boosts' in effect_name:
+            if hasattr(user, 'stat_stages') and hasattr(target, 'stat_stages'):
+                for stat in list(target.stat_stages.keys()):
+                    boost = target.stat_stages[stat]
+                    if boost > 0:
+                        user.stat_stages[stat] = min(6, user.stat_stages.get(stat, 0) + boost)
+                        target.stat_stages[stat] = 0
+            return {'success': True, 'effect': 'steal_boosts',
+                    'message': f"{user.name} stole {target.name}'s stat boosts!"}
+        
+        # Power Trick
+        if 'Power Trick' in effect_name:
+            if hasattr(user, 'attack') and hasattr(user, 'defense'):
+                user.attack, user.defense = user.defense, user.attack
+            return {'success': True, 'effect': 'power_trick',
+                    'message': f"{user.name} swapped Attack and Defense!"}
+        
+        # Power Swap
+        if 'Power Swap' in effect_name:
+            if hasattr(user, 'stat_stages') and hasattr(target, 'stat_stages'):
+                for stat in ['attack', 'sp_attack']:
+                    user.stat_stages[stat], target.stat_stages[stat] = \
+                        target.stat_stages.get(stat, 0), user.stat_stages.get(stat, 0)
+            return {'success': True, 'effect': 'power_swap',
+                    'message': f"{user.name} swapped offensive stat changes with {target.name}!"}
+        
+        # Guard Swap
+        if 'Guard Swap' in effect_name:
+            if hasattr(user, 'stat_stages') and hasattr(target, 'stat_stages'):
+                for stat in ['defense', 'sp_defense']:
+                    user.stat_stages[stat], target.stat_stages[stat] = \
+                        target.stat_stages.get(stat, 0), user.stat_stages.get(stat, 0)
+            return {'success': True, 'effect': 'guard_swap',
+                    'message': f"{user.name} swapped defensive stat changes with {target.name}!"}
+        
+        # Speed Swap
+        if 'Speed Swap' in effect_name:
+            if hasattr(user, 'speed') and hasattr(target, 'speed'):
+                user.speed, target.speed = target.speed, user.speed
+            return {'success': True, 'effect': 'speed_swap',
+                    'message': f"{user.name} swapped Speed with {target.name}!"}
+        
+        # Conversion
+        if 'Conversion' in effect_name:
+            return {'success': True, 'effect': 'conversion',
+                    'message': f"{user.name}'s type changed!"}
+        
+        # Copycat / Mirror Move
+        if effect_name in ('Copycat', 'Mirror Move'):
+            return {'success': True, 'effect': 'copycat',
+                    'message': f"{user.name} copied the last move!"}
+        
+        # Metronome
+        if 'Metronome' in effect_name:
+            return {'success': True, 'effect': 'metronome',
+                    'message': f"{user.name} used a random move!"}
+        
+        # Spite / Grudge
+        if 'Spite' in effect_name:
+            return {'success': True, 'effect': 'spite',
+                    'message': f"{target.name}'s move lost PP!"}
+        
+        # Nullify Ability
+        if 'Nullify Ability' in effect_name:
+            if hasattr(target, 'ability'):
+                target.ability = None
+            return {'success': True, 'effect': 'nullify_ability',
+                    'message': f"{target.name}'s ability was nullified!"}
+        
+        # Swap Items
+        if 'Swap Items' in effect_name:
+            if hasattr(user, 'held_item') and hasattr(target, 'held_item'):
+                user.held_item, target.held_item = target.held_item, user.held_item
+            return {'success': True, 'effect': 'swap_items',
+                    'message': f"{user.name} swapped items with {target.name}!"}
+        
+        # Nightmare
+        if 'Nightmare' in effect_name:
+            target.nightmare = True
+            return {'success': True, 'effect': 'nightmare',
+                    'message': f"{target.name} began having a nightmare!"}
+        
+        # Telekinesis
+        if 'Telekinesis' in effect_name:
+            target.telekinesis = True
+            return {'success': True, 'effect': 'telekinesis',
+                    'message': f"{target.name} was hurled into the air!"}
+        
+        # Teleport
+        if 'Teleport' in effect_name:
+            return {'success': True, 'effect': 'teleport',
+                    'message': f"{user.name} teleported away!"}
+        
+        # Pay Day
+        if 'Pay Day' in effect_name:
+            return {'success': True, 'effect': 'pay_day',
+                    'message': f"Coins scattered everywhere!"}
+        
+        # Damage Contact (Spiky Shield)
+        if 'Damage Contact' in effect_name:
+            user.protected = True
+            return {'success': True, 'effect': 'damage_contact',
+                    'message': f"{user.name} protected itself with spikes!"}
+        
+        # Fly / Dig / Dive / Shadow Force
+        if effect_name in ('Fly', 'Dig', 'Dive', 'Shadow Force'):
+            return {'success': True, 'effect': 'semi_invulnerable',
+                    'message': f"{user.name} disappeared!"}
+        
+        # Charge Turn
+        if 'Charge Turn' in effect_name:
+            return {'success': True, 'effect': 'charge',
+                    'message': f"{user.name} is charging up!"}
+        
+        # Smack Down
+        if 'Smack Down' in effect_name:
+            if hasattr(target, 'grounded'):
+                target.grounded = True
+            return {'success': True, 'effect': 'smack_down',
+                    'message': f"{target.name} fell to the ground!"}
+        
+        # Bide
+        if 'Bide' in effect_name:
+            return {'success': True, 'effect': 'bide',
+                    'message': f"{user.name} is storing energy!"}
+        
+        # Prevent Sound Moves (Throat Chop)
+        if 'Prevent Sound Moves' in effect_name:
+            target.throat_chop = True
+            target.throat_chop_turns = 2
+            return {'success': True, 'effect': 'throat_chop',
+                    'message': f"{target.name} can't use sound-based moves!"}
+        
+        # Variable Power / Damage Doubling / Speed Dependent
+        # These are handled in damage calculation
+        if any(kw in effect_name for kw in ['Variable Power', 'Damage Doubling',
+               'Speed Dependent', 'Ignore Stat Changes', 'Item Dependent',
+               'Use Target Attack', 'Type Dependent', 'Ignore Redirection']):
+            return {'success': True, 'effect': 'damage_calc', 'message': ''}
         
         # Default for unhandled special effects
         return {
@@ -668,10 +950,12 @@ class SpecialEffect(MoveEffect):
 
 class DamageModifierEffect(MoveEffect):
     """Effect that modifies damage calculation"""
-    
+
     def __init__(self, effect_data):
         super().__init__(effect_data)
-    
+
+    # *** PUBLIC ***
+
     def apply(self, user, target, battle_state, damage_dealt=0):
         """
         This effect modifies damage calculation, so it's applied differently.
@@ -686,7 +970,7 @@ class DamageModifierEffect(MoveEffect):
             'modifier_type': self.name,
             'message': ''
         }
-    
+
     def get_damage_multiplier(self, user, target, battle_state):
         """
         Calculate damage multiplier based on conditions.
@@ -694,21 +978,20 @@ class DamageModifierEffect(MoveEffect):
         Returns:
             float: Damage multiplier
         """
-        # HP Scaling High - more power at higher HP
+        # HP Scaling High - more power at higher HP (Eruption, Water Spout)
         if 'HP Scaling High' in self.name:
             hp_ratio = user.current_hp / user.max_hp
-            return 1.0 + (hp_ratio * 0.5)  # Up to 1.5x at full HP
+            return hp_ratio  # Power scales linearly with HP ratio
         
-        # Speed Dependent - double if user is faster
+        # Speed Dependent - Gyro Ball: power based on speed ratio
         if 'Speed Dependent' in self.name:
-            if user.get_effective_stat('speed') > target.get_effective_stat('speed'):
-                return 2.0
-            return 1.0
+            user_speed = max(1, user.get_effective_stat('speed'))
+            target_speed = max(1, target.get_effective_stat('speed'))
+            return min(150 / 25, max(1, target_speed / user_speed))
         
-        # Stat Boost Scaling - +20 power per stat boost
+        # Stat Boost Scaling - Stored Power, Power Trip: +20 power per boost
         if 'Stat Boost Scaling' in self.name:
             total_boosts = sum(max(0, stage) for stage in user.stat_stages.values())
-            # Each boost adds ~15% power
             return 1.0 + (total_boosts * 0.15)
         
         # Pursuit Damage - double if target is switching
@@ -717,8 +1000,72 @@ class DamageModifierEffect(MoveEffect):
                 return 2.0
             return 1.0
         
+        # Weight Damage - based on target weight
+        if 'Weight Damage' in self.name:
+            weight = getattr(target, 'weight', 50)
+            if weight >= 200:
+                return 120 / 60  # Relative to base 60
+            elif weight >= 100:
+                return 100 / 60
+            elif weight >= 50:
+                return 80 / 60
+            elif weight >= 25:
+                return 60 / 60
+            else:
+                return 40 / 60
+        
+        # Damage Doubling - conditionally doubles damage
+        if 'Damage Doubling' in self.name:
+            # Would need move name context; handled in turn_logic
+            return 1.0
+        
+        # Fixed Damage types - override in apply(), not multiplier
+        if 'Fixed Damage' in self.name or 'Endeavor' in self.name or 'Final Gambit' in self.name:
+            return 1.0
+        
+        # Stat Dependent Damage - hits physical defense with special move
+        if 'Stat Dependent Damage' in self.name:
+            return 1.0  # Handled in turn_logic damage calc
+        
+        # Terrain Dependent - Weather Ball type changes
+        if 'Terrain Dependent' in self.name:
+            weather = battle_state.get('weather', {})
+            if isinstance(weather, dict) and weather.get('type') not in (None, 'None'):
+                return 2.0
+            return 1.0
+        
         # Default
         return 1.0
+
+
+def apply_move_effects(effects_list, user, target, battle_state=None, damage_dealt=0, context=None):
+    """
+    Convenience function to apply a list of effects in order.
+    
+    Args:
+        effects_list (list): List of MoveEffect objects
+        user: Pokemon using the move
+        target: Pokemon being targeted
+        battle_state (dict): Current battle state, optional (creates default if None)
+        damage_dealt (int): Damage dealt by the move (for drain/recoil)
+        context (dict): Battle context (hit, crit, etc.), optional
+    
+    Returns:
+        list: List of result dictionaries from each effect that triggered
+    """
+    if battle_state is None:
+        battle_state = {}
+    
+    if context is None:
+        context = {'hit': True, 'crit': False}
+    
+    results = []
+    for effect in effects_list:
+        if effect.should_trigger(context):
+            result = effect.apply(user, target, battle_state, damage_dealt)
+            results.append(result)
+    
+    return results
 
 
 def create_effect_from_data(effect_data):
@@ -751,36 +1098,6 @@ def create_effect_from_data(effect_data):
         return SpecialEffect(effect_data)
     else:
         return MoveEffect(effect_data)
-
-
-def apply_move_effects(effects_list, user, target, battle_state=None, damage_dealt=0, context=None):
-    """
-    Convenience function to apply a list of effects in order.
-    
-    Args:
-        effects_list (list): List of MoveEffect objects
-        user: Pokemon using the move
-        target: Pokemon being targeted
-        battle_state (dict): Current battle state, optional (creates default if None)
-        damage_dealt (int): Damage dealt by the move (for drain/recoil)
-        context (dict): Battle context (hit, crit, etc.), optional
-    
-    Returns:
-        list: List of result dictionaries from each effect that triggered
-    """
-    if battle_state is None:
-        battle_state = {}
-    
-    if context is None:
-        context = {'hit': True, 'crit': False}
-    
-    results = []
-    for effect in effects_list:
-        if effect.should_trigger(context):
-            result = effect.apply(user, target, battle_state, damage_dealt)
-            results.append(result)
-    
-    return results
 
 
 # Example usage and testing

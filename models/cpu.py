@@ -17,6 +17,11 @@ try:
 except ImportError:
     from src.repositories import PokemonRepository, MoveRepository
 
+try:
+    from constants import TYPE_CHART
+except ImportError:
+    from models.constants import TYPE_CHART
+
 
 class AIFlag(Enum):
     """AI behavior flags that determine how the CPU chooses moves"""
@@ -37,7 +42,7 @@ class CPUTrainer:
     CPU AI for Pokemon battles
     Scores moves and selects the best action based on assigned behavior flags
     """
-    
+
     def __init__(self, flags: List[AIFlag] = None, difficulty: str = "normal"):
         """
         Initialize CPU trainer AI
@@ -62,7 +67,9 @@ class CPUTrainer:
         
         self.pokemon_repo = PokemonRepository()
         self.move_repo = MoveRepository()
-    
+
+    # *** PUBLIC ***
+
     def choose_move(self, user_pokemon, target_pokemon, battle_state: Dict = None) -> Dict:
         """
         Choose the best move for the AI to use
@@ -143,9 +150,15 @@ class CPUTrainer:
             'modifiers': chosen['modifiers'],
             'reason': f"Score: {chosen['score']}, Modifiers: {', '.join(chosen['modifiers']) if chosen['modifiers'] else 'None'}"
         }
-    
-    # ========== BASIC FLAG ==========
-    
+
+    def get_difficulty_description(self) -> str:
+        """Get description of AI difficulty"""
+        flag_names = [flag.value for flag in self.flags]
+        return f"Flags: {', '.join(flag_names)}"
+
+    # *** PRIVATE ***
+    # region AI flag scoring
+
     def _apply_basic_flag(self, move_scores: Dict, user: any, target: any, battle_state: Dict):
         """
         Apply Basic Flag scoring
@@ -169,7 +182,143 @@ class CPUTrainer:
                 data['score'] += effect_modifier
                 if effect_modifier < 0:
                     data['modifiers'].append(f"Effect penalty: {effect_modifier}")
-    
+
+    def _apply_check_hp_flag(self, move_scores: Dict, user: any, target: any):
+        """
+        Apply Check HP Flag scoring
+        Philosophy: Make decisions based on HP thresholds
+        """
+        user_hp_percent = user.current_hp / user.max_hp
+        target_hp_percent = target.current_hp / target.max_hp
+        
+        for move_id, data in move_scores.items():
+            move = data['move']
+            move_name_lower = move.get('name', '').lower()
+            
+            # Healing moves when low HP - check for HEAL effects
+            has_heal = any(eff.get('effect_type') == 'HEAL' and eff.get('heal_percentage', 0) > 0 
+                          for eff in move.get('effects', []))
+            if has_heal:
+                if user_hp_percent < 0.3:
+                    data['score'] += 20
+                    data['modifiers'].append("Check HP: Critical HP, heal +20")
+                elif user_hp_percent < 0.5:
+                    data['score'] += 10
+                    data['modifiers'].append("Check HP: Low HP, heal +10")
+            
+            # Aggressive when target is low
+            if move.get('causes_damage', False) and move.get('power', 0) > 0:
+                if target_hp_percent < 0.25:
+                    data['score'] += 10
+                    data['modifiers'].append("Check HP: Target low, finish off +10")
+            
+            # Don't waste big moves on low HP targets
+            power = move.get('power', 0)
+            if power and power >= 100 and target_hp_percent < 0.15:
+                data['score'] -= 5
+                data['modifiers'].append("Check HP: Overkill -5")
+
+    def _apply_evaluate_attack_flag(self, move_scores: Dict, user: any, target: any):
+        """
+        Apply Evaluate Attack Flag scoring
+        Philosophy: Prefer super effective moves, avoid not very effective moves
+        """
+        target_data = self.pokemon_repo.get_by_id(target.id)
+        
+        for move_id, data in move_scores.items():
+            move = data['move']
+            
+            # Only evaluate damaging moves
+            if not move.get('causes_damage', False) or move.get('power', 0) == 0:
+                continue
+            
+            effectiveness = self._calculate_type_effectiveness(move.get('type', ''), target_data)
+            
+            if effectiveness > 1.0:
+                # Super effective
+                bonus = 10 if effectiveness >= 2.0 else 5
+                data['score'] += bonus
+                data['modifiers'].append(f"Super effective: +{bonus}")
+            elif effectiveness < 1.0:
+                # Not very effective
+                penalty = -10 if effectiveness <= 0.5 else -5
+                data['score'] += penalty
+                data['modifiers'].append(f"Not very effective: {penalty}")
+
+    def _apply_expert_flag(self, move_scores: Dict, user: any, target: any, battle_state: Dict):
+        """
+        Apply Expert Flag scoring
+        Philosophy: Advanced tactics and prediction
+        """
+        for move_id, data in move_scores.items():
+            move = data['move']
+            move_name_lower = move.get('name', '').lower()
+            
+            # Prefer setup if target is slower and we're healthy
+            if user.current_hp > user.max_hp * 0.7:
+                # Check for stat-boosting moves (setup moves)
+                has_stat_boost = any(eff.get('effect_type') == 'STAT_CHANGE' and 
+                                   eff.get('stat_change_amount', 0) > 0 and
+                                   eff.get('effect_target') == 'User'
+                                   for eff in move.get('effects', []))
+                if has_stat_boost and user.speed > target.speed:
+                    data['score'] += 5
+                    data['modifiers'].append("Expert: Setup opportunity +5")
+            
+            # Avoid setting up if low HP
+            if user.current_hp < user.max_hp * 0.4:
+                if not move.get('causes_damage', True):
+                    data['score'] -= 5
+                    data['modifiers'].append("Expert: Low HP, prefer damage -5")
+            
+            # Prefer coverage moves if main attack is resisted
+            if move.get('causes_damage', False):
+                user_data = self.pokemon_repo.get_by_id(user.id)
+                move_type = move.get('type', '')
+                
+                # STAB bonus consideration
+                if move_type in [user_data.get('type1'), user_data.get('type2')]:
+                    data['score'] += 3
+                    data['modifiers'].append("Expert: STAB +3")
+
+    def _apply_prioritize_damage_flag(self, move_scores: Dict, user: any, target: any):
+        """
+        Apply Prioritize Damage Flag scoring
+        Philosophy: Prefer damaging moves over status moves
+        """
+        for move_id, data in move_scores.items():
+            move = data['move']
+            
+            if move.get('causes_damage', False) and move.get('power', 0) > 0:
+                power = move.get('power', 0)
+                
+                # Bonus for high power moves
+                if power >= 100:
+                    data['score'] += 10
+                    data['modifiers'].append("Prioritize Damage: High power +10")
+                elif power >= 80:
+                    data['score'] += 5
+                    data['modifiers'].append("Prioritize Damage: Good power +5")
+            else:
+                # Penalty for non-damaging moves
+                data['score'] -= 5
+                data['modifiers'].append("Prioritize Damage: Status move -5")
+
+    # endregion AI flag scoring
+
+    def _calculate_type_effectiveness(self, attack_type: str, defender_data: Dict) -> float:
+        """Calculate type effectiveness multiplier using shared type chart"""
+        defender_types = [defender_data.get('type1'), defender_data.get('type2')]
+        multiplier = 1.0
+        
+        for def_type in defender_types:
+            if def_type is None:
+                continue
+            if attack_type in TYPE_CHART:
+                multiplier *= TYPE_CHART[attack_type].get(def_type, 1.0)
+        
+        return multiplier
+
     def _check_immunities(self, move: Dict, user: any, target: any, 
                          user_data: Dict, target_data: Dict) -> int:
         """Check for type and ability immunities"""
@@ -186,7 +335,36 @@ class CPUTrainer:
             penalty = -10
         
         return penalty
-    
+
+    def _create_default_battle_state(self) -> Dict:
+        """Create a default battle state"""
+        return {
+            'weather': {'type': 'None', 'turns_remaining': 0},
+            'field_effects': {
+                'trick_room': False,
+                'terrain': None,
+                'reflect_p1': 0,
+                'light_screen_p1': 0,
+                'reflect_p2': 0,
+                'light_screen_p2': 0,
+            },
+            'turn_count': 1
+        }
+
+    def _is_immune_by_ability(self, move: Dict, ability: str, move_type: str) -> bool:
+        """Check if target's ability makes them immune"""
+        # Simplified ability immunities
+        ability_immunities = {
+            'Volt Absorb': ['Electric'],
+            'Motor Drive': ['Electric'],
+            'Water Absorb': ['Water'],
+            'Flash Fire': ['Fire'],
+            'Levitate': ['Ground'],
+        }
+        
+        immune_types = ability_immunities.get(ability, [])
+        return move_type in immune_types
+
     def _is_immune_by_type(self, move_type: str, target_data: Dict) -> bool:
         """Check if target is immune to move type"""
         # Type chart immunities
@@ -208,21 +386,8 @@ class CPUTrainer:
                 return True
         
         return False
-    
-    def _is_immune_by_ability(self, move: Dict, ability: str, move_type: str) -> bool:
-        """Check if target's ability makes them immune"""
-        # Simplified ability immunities
-        ability_immunities = {
-            'Volt Absorb': ['Electric'],
-            'Motor Drive': ['Electric'],
-            'Water Absorb': ['Water'],
-            'Flash Fire': ['Fire'],
-            'Levitate': ['Ground'],
-        }
-        
-        immune_types = ability_immunities.get(ability, [])
-        return move_type in immune_types
-    
+    # region Scoring
+
     def _score_by_effect(self, move: Dict, user: any, target: any, battle_state: Dict) -> int:
         """Score move based on its effect type"""
         modifier = 0
@@ -274,7 +439,37 @@ class CPUTrainer:
                     modifier = -10
         
         return modifier
-    
+
+    def _score_stat_boost(self, move: Dict, user: any, target: any, battle_state: Dict) -> int:
+        """Score stat-boosting moves using database effects"""
+        modifier = 0
+        
+        # Get stat change effects
+        effects = move.get('effects', [])
+        for effect in effects:
+            if effect.get('effect_type') == 'STAT_CHANGE' and effect.get('effect_target') == 'User':
+                stat = effect.get('stat_to_change', '')
+                amount = effect.get('stat_change_amount', 0)
+                
+                if amount > 0:  # Stat boost (ignore stat drops)
+                    # Check if already at max stage for this stat
+                    if stat == 'attack' and user.stat_stages.get('attack', 0) >= 6:
+                        modifier = -10
+                    elif stat == 'sp_attack' and user.stat_stages.get('sp_attack', 0) >= 6:
+                        modifier = -10
+                    elif stat == 'speed':
+                        if user.stat_stages.get('speed', 0) >= 6:
+                            modifier = -10
+                        # Check Trick Room
+                        if battle_state.get('field_effects', {}).get('trick_room', False):
+                            modifier = -10
+                    elif stat == 'defense' and user.stat_stages.get('defense', 0) >= 6:
+                        modifier = -10
+                    elif stat == 'sp_defense' and user.stat_stages.get('sp_defense', 0) >= 6:
+                        modifier = -10
+        
+        return modifier
+
     def _score_status_move(self, move: Dict, user: any, target: any, 
                           battle_state: Dict, move_name_lower: str) -> int:
         """Score status-inflicting moves using database effects"""
@@ -321,244 +516,8 @@ class CPUTrainer:
                         modifier = -5
         
         return modifier
-    
-    def _score_stat_boost(self, move: Dict, user: any, target: any, battle_state: Dict) -> int:
-        """Score stat-boosting moves using database effects"""
-        modifier = 0
-        
-        # Get stat change effects
-        effects = move.get('effects', [])
-        for effect in effects:
-            if effect.get('effect_type') == 'STAT_CHANGE' and effect.get('effect_target') == 'User':
-                stat = effect.get('stat_to_change', '')
-                amount = effect.get('stat_change_amount', 0)
-                
-                if amount > 0:  # Stat boost (ignore stat drops)
-                    # Check if already at max stage for this stat
-                    if stat == 'attack' and user.stat_stages.get('attack', 0) >= 6:
-                        modifier = -10
-                    elif stat == 'sp_attack' and user.stat_stages.get('sp_attack', 0) >= 6:
-                        modifier = -10
-                    elif stat == 'speed':
-                        if user.stat_stages.get('speed', 0) >= 6:
-                            modifier = -10
-                        # Check Trick Room
-                        if battle_state.get('field_effects', {}).get('trick_room', False):
-                            modifier = -10
-                    elif stat == 'defense' and user.stat_stages.get('defense', 0) >= 6:
-                        modifier = -10
-                    elif stat == 'sp_defense' and user.stat_stages.get('sp_defense', 0) >= 6:
-                        modifier = -10
-        
-        return modifier
-    
-    # ========== EVALUATE ATTACK FLAG ==========
-    
-    def _apply_evaluate_attack_flag(self, move_scores: Dict, user: any, target: any):
-        """
-        Apply Evaluate Attack Flag scoring
-        Philosophy: Prefer super effective moves, avoid not very effective moves
-        """
-        target_data = self.pokemon_repo.get_by_id(target.id)
-        
-        for move_id, data in move_scores.items():
-            move = data['move']
-            
-            # Only evaluate damaging moves
-            if not move.get('causes_damage', False) or move.get('power', 0) == 0:
-                continue
-            
-            effectiveness = self._calculate_type_effectiveness(move.get('type', ''), target_data)
-            
-            if effectiveness > 1.0:
-                # Super effective
-                bonus = 10 if effectiveness >= 2.0 else 5
-                data['score'] += bonus
-                data['modifiers'].append(f"Super effective: +{bonus}")
-            elif effectiveness < 1.0:
-                # Not very effective
-                penalty = -10 if effectiveness <= 0.5 else -5
-                data['score'] += penalty
-                data['modifiers'].append(f"Not very effective: {penalty}")
-    
-    def _calculate_type_effectiveness(self, attack_type: str, defender_data: Dict) -> float:
-        """Calculate type effectiveness multiplier"""
-        # Simplified type chart
-        super_effective = {
-            'Fire': ['Grass', 'Ice', 'Bug', 'Steel'],
-            'Water': ['Fire', 'Ground', 'Rock'],
-            'Electric': ['Water', 'Flying'],
-            'Grass': ['Water', 'Ground', 'Rock'],
-            'Ice': ['Grass', 'Ground', 'Flying', 'Dragon'],
-            'Fighting': ['Normal', 'Ice', 'Rock', 'Dark', 'Steel'],
-            'Poison': ['Grass', 'Fairy'],
-            'Ground': ['Fire', 'Electric', 'Poison', 'Rock', 'Steel'],
-            'Flying': ['Grass', 'Fighting', 'Bug'],
-            'Psychic': ['Fighting', 'Poison'],
-            'Bug': ['Grass', 'Psychic', 'Dark'],
-            'Rock': ['Fire', 'Ice', 'Flying', 'Bug'],
-            'Ghost': ['Psychic', 'Ghost'],
-            'Dragon': ['Dragon'],
-            'Dark': ['Psychic', 'Ghost'],
-            'Steel': ['Ice', 'Rock', 'Fairy'],
-            'Fairy': ['Fighting', 'Dragon', 'Dark'],
-        }
-        
-        not_very_effective = {
-            'Fire': ['Fire', 'Water', 'Rock', 'Dragon'],
-            'Water': ['Water', 'Grass', 'Dragon'],
-            'Electric': ['Electric', 'Grass', 'Dragon'],
-            'Grass': ['Fire', 'Grass', 'Poison', 'Flying', 'Bug', 'Dragon', 'Steel'],
-            'Ice': ['Fire', 'Water', 'Ice', 'Steel'],
-            'Fighting': ['Poison', 'Flying', 'Psychic', 'Bug', 'Fairy'],
-            'Poison': ['Poison', 'Ground', 'Rock', 'Ghost'],
-            'Ground': ['Grass', 'Bug'],
-            'Flying': ['Electric', 'Rock', 'Steel'],
-            'Psychic': ['Psychic', 'Steel'],
-            'Bug': ['Fire', 'Fighting', 'Poison', 'Flying', 'Ghost', 'Steel', 'Fairy'],
-            'Rock': ['Fighting', 'Ground', 'Steel'],
-            'Ghost': ['Dark'],
-            'Dragon': ['Steel'],
-            'Dark': ['Fighting', 'Dark', 'Fairy'],
-            'Steel': ['Fire', 'Water', 'Electric', 'Steel'],
-            'Fairy': ['Fire', 'Poison', 'Steel'],
-        }
-        
-        defender_types = [defender_data.get('type1'), defender_data.get('type2')]
-        multiplier = 1.0
-        
-        for def_type in defender_types:
-            if def_type is None:
-                continue
-            
-            if attack_type in super_effective and def_type in super_effective[attack_type]:
-                multiplier *= 2.0
-            elif attack_type in not_very_effective and def_type in not_very_effective[attack_type]:
-                multiplier *= 0.5
-        
-        return multiplier
-    
-    # ========== EXPERT FLAG ==========
-    
-    def _apply_expert_flag(self, move_scores: Dict, user: any, target: any, battle_state: Dict):
-        """
-        Apply Expert Flag scoring
-        Philosophy: Advanced tactics and prediction
-        """
-        for move_id, data in move_scores.items():
-            move = data['move']
-            move_name_lower = move.get('name', '').lower()
-            
-            # Prefer setup if target is slower and we're healthy
-            if user.current_hp > user.max_hp * 0.7:
-                # Check for stat-boosting moves (setup moves)
-                has_stat_boost = any(eff.get('effect_type') == 'STAT_CHANGE' and 
-                                   eff.get('stat_change_amount', 0) > 0 and
-                                   eff.get('effect_target') == 'User'
-                                   for eff in move.get('effects', []))
-                if has_stat_boost and user.speed > target.speed:
-                    data['score'] += 5
-                    data['modifiers'].append("Expert: Setup opportunity +5")
-            
-            # Avoid setting up if low HP
-            if user.current_hp < user.max_hp * 0.4:
-                if not move.get('causes_damage', True):
-                    data['score'] -= 5
-                    data['modifiers'].append("Expert: Low HP, prefer damage -5")
-            
-            # Prefer coverage moves if main attack is resisted
-            if move.get('causes_damage', False):
-                user_data = self.pokemon_repo.get_by_id(user.id)
-                move_type = move.get('type', '')
-                
-                # STAB bonus consideration
-                if move_type in [user_data.get('type1'), user_data.get('type2')]:
-                    data['score'] += 3
-                    data['modifiers'].append("Expert: STAB +3")
-    
-    # ========== CHECK HP FLAG ==========
-    
-    def _apply_check_hp_flag(self, move_scores: Dict, user: any, target: any):
-        """
-        Apply Check HP Flag scoring
-        Philosophy: Make decisions based on HP thresholds
-        """
-        user_hp_percent = user.current_hp / user.max_hp
-        target_hp_percent = target.current_hp / target.max_hp
-        
-        for move_id, data in move_scores.items():
-            move = data['move']
-            move_name_lower = move.get('name', '').lower()
-            
-            # Healing moves when low HP - check for HEAL effects
-            has_heal = any(eff.get('effect_type') == 'HEAL' and eff.get('heal_percentage', 0) > 0 
-                          for eff in move.get('effects', []))
-            if has_heal:
-                if user_hp_percent < 0.3:
-                    data['score'] += 20
-                    data['modifiers'].append("Check HP: Critical HP, heal +20")
-                elif user_hp_percent < 0.5:
-                    data['score'] += 10
-                    data['modifiers'].append("Check HP: Low HP, heal +10")
-            
-            # Aggressive when target is low
-            if move.get('causes_damage', False) and move.get('power', 0) > 0:
-                if target_hp_percent < 0.25:
-                    data['score'] += 10
-                    data['modifiers'].append("Check HP: Target low, finish off +10")
-            
-            # Don't waste big moves on low HP targets
-            power = move.get('power', 0)
-            if power and power >= 100 and target_hp_percent < 0.15:
-                data['score'] -= 5
-                data['modifiers'].append("Check HP: Overkill -5")
-    
-    # ========== PRIORITIZE DAMAGE FLAG ==========
-    
-    def _apply_prioritize_damage_flag(self, move_scores: Dict, user: any, target: any):
-        """
-        Apply Prioritize Damage Flag scoring
-        Philosophy: Prefer damaging moves over status moves
-        """
-        for move_id, data in move_scores.items():
-            move = data['move']
-            
-            if move.get('causes_damage', False) and move.get('power', 0) > 0:
-                power = move.get('power', 0)
-                
-                # Bonus for high power moves
-                if power >= 100:
-                    data['score'] += 10
-                    data['modifiers'].append("Prioritize Damage: High power +10")
-                elif power >= 80:
-                    data['score'] += 5
-                    data['modifiers'].append("Prioritize Damage: Good power +5")
-            else:
-                # Penalty for non-damaging moves
-                data['score'] -= 5
-                data['modifiers'].append("Prioritize Damage: Status move -5")
-    
-    # ========== UTILITY METHODS ==========
-    
-    def _create_default_battle_state(self) -> Dict:
-        """Create a default battle state"""
-        return {
-            'weather': {'type': 'None', 'turns_remaining': 0},
-            'field_effects': {
-                'trick_room': False,
-                'terrain': None,
-                'reflect_p1': 0,
-                'light_screen_p1': 0,
-                'reflect_p2': 0,
-                'light_screen_p2': 0,
-            },
-            'turn_count': 1
-        }
-    
-    def get_difficulty_description(self) -> str:
-        """Get description of AI difficulty"""
-        flag_names = [flag.value for flag in self.flags]
-        return f"Flags: {', '.join(flag_names)}"
+
+    # endregion Scoring
 
 
 # ========== EXAMPLE USAGE ==========
