@@ -1,0 +1,11 @@
+{
+  "id": 597,
+  "frame_count": 1,
+  "frame_width": 56,
+  "frame_height": 64,
+  "sheet_width": 56,
+  "sheet_height": 64,
+  "delays": [
+    60
+  ]
+}
